@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OrdersModule } from './orders/orders.module';
 import { BullModule } from '@nestjs/bullmq';
+import { DispatchModule } from './dispatch/dispatch.module';
 import * as Joi from 'joi';
 
 @Module({
@@ -36,6 +37,7 @@ import * as Joi from 'joi';
       inject: [ConfigService],
     }),
     OrdersModule,
+    DispatchModule,
   ],
 })
 export class AppModule {}
