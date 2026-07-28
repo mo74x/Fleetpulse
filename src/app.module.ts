@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
-import { ConfigModule } from '@nestjs/config';
+import { ConfigModule, ConfigService } from '@nestjs/config';
+import { OrdersModule } from './orders/orders.module';
+import { BullModule } from '@nestjs/bullmq';
 import * as Joi from 'joi';
 
 @Module({
@@ -23,6 +25,17 @@ import * as Joi from 'joi';
         ELASTICSEARCH_NODE: Joi.string().required(),
       }),
     }),
+    BullModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        connection: {
+          host: configService.get('REDIS_HOST'),
+          port: configService.get('REDIS_PORT'),
+        },
+      }),
+      inject: [ConfigService],
+    }),
+    OrdersModule,
   ],
 })
 export class AppModule {}
