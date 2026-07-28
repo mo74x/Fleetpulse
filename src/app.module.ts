@@ -3,7 +3,9 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OrdersModule } from './orders/orders.module';
 import { BullModule } from '@nestjs/bullmq';
 import { DispatchModule } from './dispatch/dispatch.module';
+import { SearchModule } from './search/search.module';
 import * as Joi from 'joi';
+import { MongooseModule } from '@nestjs/mongoose';
 
 @Module({
   imports: [
@@ -36,8 +38,16 @@ import * as Joi from 'joi';
       }),
       inject: [ConfigService],
     }),
+    MongooseModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        uri: configService.get<string>('MONGO_URI'),
+      }),
+      inject: [ConfigService],
+    }),
     OrdersModule,
     DispatchModule,
+    SearchModule,
   ],
 })
 export class AppModule {}
