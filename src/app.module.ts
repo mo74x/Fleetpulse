@@ -6,6 +6,8 @@ import { DispatchModule } from './dispatch/dispatch.module';
 import { SearchModule } from './search/search.module';
 import * as Joi from 'joi';
 import { MongooseModule } from '@nestjs/mongoose';
+import { LedgerModule } from './ledger/ledger.module';
+import { TypeOrmModule } from '@nestjs/typeorm';
 
 @Module({
   imports: [
@@ -45,9 +47,24 @@ import { MongooseModule } from '@nestjs/mongoose';
       }),
       inject: [ConfigService],
     }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => ({
+        type: 'postgres',
+        host: configService.get<string>('POSTGRES_HOST'),
+        port: configService.get<number>('POSTGRES_PORT'),
+        username: configService.get<string>('POSTGRES_USER'),
+        password: configService.get<string>('POSTGRES_PASSWORD'),
+        database: configService.get<string>('POSTGRES_DB'),
+        entities: [__dirname + '/**/*.entity{.ts,.js}'],
+        synchronize: true, //Use migrations in prod
+      }),
+      inject: [ConfigService],
+    }),
     OrdersModule,
     DispatchModule,
     SearchModule,
+    LedgerModule,
   ],
 })
 export class AppModule {}
