@@ -2,6 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { ValidationPipe } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
+import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -14,6 +15,19 @@ async function bootstrap() {
     }),
   );
 
+  const config = new DocumentBuilder()
+    .setTitle('FleetPulse Logistics API')
+    .setDescription(
+      'The core routing, dispatch, and ledger API for the FleetPulse logistics engine.',
+    )
+    .setVersion('1.0')
+    .addTag('orders', 'Order ingestion and management')
+    .addTag('search', 'Elasticsearch waybill queries')
+    .build();
+
+  const document = SwaggerModule.createDocument(app, config);
+  SwaggerModule.setup('api/docs', app, document);
+
   // Connect Microservice (RabbitMQ Consumer)
   app.connectMicroservice<MicroserviceOptions>({
     transport: Transport.RMQ,
@@ -23,7 +37,7 @@ async function bootstrap() {
       queueOptions: {
         durable: true,
       },
-      noAck: false, // We manually acknowledge messages in the controller
+      noAck: false,
     },
   });
 
