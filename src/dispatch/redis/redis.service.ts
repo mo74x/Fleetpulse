@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 import {
@@ -37,6 +36,19 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   async onModuleInit() {
     await this.client.connect();
     this.logger.log('Raw Redis Client Connected (Geo & Locks)');
+  }
+
+  async findNearbyCouriers(
+    latitude: number,
+    longitude: number,
+    radiusKm: number = 5,
+  ): Promise<string[]> {
+    const couriers = await this.client.geoSearch(
+      'couriers:locations',
+      { longitude, latitude },
+      { radius: radiusKm, unit: 'km' },
+    );
+    return couriers;
   }
 
   async onModuleDestroy() {

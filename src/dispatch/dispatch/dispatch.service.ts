@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/await-thenable */
 /* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-return */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
@@ -16,18 +17,45 @@ export class DispatchService {
    * Find couriers within a specific radius (e.g., 5 km)
    */
   async findNearbyCouriers(
-    lon: number,
     lat: number,
+    lon: number,
     radiusKm: number = 5,
   ): Promise<string[]> {
-    // GEOSEARCH is the modern replacement for GEORADIUS in Redis 6.2+
-    const couriers = await this.redisService.client.geoSearch(
-      'couriers:locations',
-      { longitude: lon, latitude: lat },
-      { radius: radiusKm, unit: 'km' },
-    );
+    return this.redisService.findNearbyCouriers(lat, lon, radiusKm);
+  }
 
-    return couriers; // Returns an array of courierIds
+  /**
+   * Auto-assign the nearest courier or assign a specific courier with Redlock concurrency safety
+   */
+  async assignOrder(
+    orderId: string,
+    courierId?: string,
+    latitude?: number,
+    longitude?: number,
+    radiusKm: number = 5,
+  ) {
+    let targetCourierId = courierId;
+
+    if (!targetCourierId) {
+      if (latitude === undefined || longitude === undefined) {
+        throw new ConflictException(
+          'Either courierId or latitude and longitude must be provided for assignment.',
+        );
+      }
+      const nearbyCouriers = await this.findNearbyCouriers(
+        latitude,
+        longitude,
+        radiusKm,
+      );
+      if (!nearbyCouriers || nearbyCouriers.length === 0) {
+        throw new ConflictException(
+          `No nearby couriers found within ${radiusKm} km radius.`,
+        );
+      }
+      targetCourierId = nearbyCouriers[0];
+    }
+
+    return this.assignOrderSafely(orderId, targetCourierId);
   }
 
   /**
