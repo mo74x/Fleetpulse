@@ -23,6 +23,7 @@ async function bootstrap() {
     .setVersion('1.0')
     .addTag('orders', 'Order ingestion and management')
     .addTag('search', 'Elasticsearch waybill queries')
+    .addBearerAuth()
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
