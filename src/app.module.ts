@@ -8,6 +8,7 @@ import * as Joi from 'joi';
 import { MongooseModule } from '@nestjs/mongoose';
 import { LedgerModule } from './ledger/ledger.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
+import { AuthModule } from './auth/auth.module';
 
 @Module({
   imports: [
@@ -28,6 +29,8 @@ import { TypeOrmModule } from '@nestjs/typeorm';
         REDIS_PORT: Joi.number().default(6379),
         RABBITMQ_URI: Joi.string().required(),
         ELASTICSEARCH_NODE: Joi.string().required(),
+        JWT_SECRET: Joi.string().required(),
+        JWT_EXPIRATION: Joi.string().default('1d'),
       }),
     }),
     BullModule.forRootAsync({
@@ -61,6 +64,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
       }),
       inject: [ConfigService],
     }),
+    AuthModule,
     OrdersModule,
     DispatchModule,
     SearchModule,
