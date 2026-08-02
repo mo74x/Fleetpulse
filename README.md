@@ -1,98 +1,360 @@
 <p align="center">
-  <a href="http://nestjs.com/" target="blank"><img src="https://nestjs.com/img/logo-small.svg" width="120" alt="Nest Logo" /></a>
+  <img src="https://nestjs.com/img/logo-small.svg" width="80" alt="FleetPulse Logo" />
 </p>
 
-[circleci-image]: https://img.shields.io/circleci/build/github/nestjs/nest/master?token=abc123def456
-[circleci-url]: https://circleci.com/gh/nestjs/nest
-
-  <p align="center">A progressive <a href="http://nodejs.org" target="_blank">Node.js</a> framework for building efficient and scalable server-side applications.</p>
-    <p align="center">
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/v/@nestjs/core.svg" alt="NPM Version" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/l/@nestjs/core.svg" alt="Package License" /></a>
-<a href="https://www.npmjs.com/~nestjscore" target="_blank"><img src="https://img.shields.io/npm/dm/@nestjs/common.svg" alt="NPM Downloads" /></a>
-<a href="https://circleci.com/gh/nestjs/nest" target="_blank"><img src="https://img.shields.io/circleci/build/github/nestjs/nest/master" alt="CircleCI" /></a>
-<a href="https://discord.gg/G7Qnnhy" target="_blank"><img src="https://img.shields.io/badge/discord-online-brightgreen.svg" alt="Discord"/></a>
-<a href="https://opencollective.com/nest#backer" target="_blank"><img src="https://opencollective.com/nest/backers/badge.svg" alt="Backers on Open Collective" /></a>
-<a href="https://opencollective.com/nest#sponsor" target="_blank"><img src="https://opencollective.com/nest/sponsors/badge.svg" alt="Sponsors on Open Collective" /></a>
-  <a href="https://paypal.me/kamilmysliwiec" target="_blank"><img src="https://img.shields.io/badge/Donate-PayPal-ff3f59.svg" alt="Donate us"/></a>
-    <a href="https://opencollective.com/nest#sponsor"  target="_blank"><img src="https://img.shields.io/badge/Support%20us-Open%20Collective-41B883.svg" alt="Support us"></a>
-  <a href="https://twitter.com/nestframework" target="_blank"><img src="https://img.shields.io/twitter/follow/nestframework.svg?style=social&label=Follow" alt="Follow us on Twitter"></a>
+<h1 align="center">FleetPulse</h1>
+<p align="center">
+  <b>A production-grade, event-driven logistics engine built with NestJS</b>
 </p>
-  <!--[![Backers on Open Collective](https://opencollective.com/nest/backers/badge.svg)](https://opencollective.com/nest#backer)
-  [![Sponsors on Open Collective](https://opencollective.com/nest/sponsors/badge.svg)](https://opencollective.com/nest#sponsor)-->
+<p align="center">
+  <a href="#architecture">Architecture</a> •
+  <a href="#tech-stack">Tech Stack</a> •
+  <a href="#getting-started">Getting Started</a> •
+  <a href="#api-overview">API Overview</a> •
+  <a href="#testing">Testing</a> •
+  <a href="#ci-cd">CI/CD</a>
+</p>
 
-## Description
+---
 
-[Nest](https://github.com/nestjs/nest) framework TypeScript starter repository.
+## Overview
 
-## Project setup
+**FleetPulse** is a real-time, last-mile delivery management platform designed for high-throughput logistics operations. It handles the full lifecycle of a delivery order — from ingestion and courier dispatch, through real-time GPS tracking, to financial settlement via a double-entry ledger — all within a polyglot-persistent, event-driven architecture.
 
-```bash
-$ npm install
+---
+
+## Architecture
+
+```
+┌───────────────────────────────────────────────────────────────────────────────┐
+│                            FleetPulse Architecture                            │
+├───────────────────────────────────────────────────────────────────────────────┤
+│                                                                               │
+│   ┌─────────────┐        ┌─────────────────────────────────────────────┐      │
+│   │   Client /   │  HTTP  │              NestJS Gateway                │      │
+│   │  Swagger UI  │───────▶│                                             │      │
+│   └─────────────┘        │  ┌────────────┐  ┌───────────────────────┐  │      │
+│                          │  │   Auth      │  │   Orders Controller   │  │      │
+│   ┌─────────────┐        │  │  (JWT +     │  │   • POST /orders      │  │      │
+│   │   Driver    │  WS    │  │   RBAC)     │  │   • GET  /orders      │  │      │
+│   │   Mobile    │────────│  └────────────┘  │   • GET  /orders/:id   │  │      │
+│   │   App       │        │                  │   • PATCH /orders/:id  │  │      │
+│   └─────────────┘        │  ┌────────────┐  └───────────────────────┘  │      │
+│                          │  │  Dispatch   │  ┌───────────────────────┐  │      │
+│                          │  │  Controller │  │   Search Controller   │  │      │
+│                          │  │  + Gateway  │  │   • GET /search       │  │      │
+│                          │  └─────┬──────┘  └──────────┬────────────┘  │      │
+│                          └────────┼─────────────────────┼──────────────┘      │
+│                                   │                     │                     │
+│  ┌────────────────────────────────┼─────────────────────┼──────────────────┐  │
+│  │              Data & Messaging Layer                                     │  │
+│  │                                                                         │  │
+│  │  ┌──────────┐  ┌──────────┐  ┌──────────┐  ┌────────────────────────┐  │  │
+│  │  │ MongoDB  │  │ Postgres │  │  Redis    │  │   RabbitMQ             │  │  │
+│  │  │ (Orders) │  │ (Ledger) │  │ (Geo +   │  │   (Event Bus)          │  │  │
+│  │  │          │  │          │  │  Locks +  │  │                        │  │  │
+│  │  │          │  │          │  │  BullMQ)  │  │   order.delivered ──┐  │  │  │
+│  │  └──────────┘  └──────────┘  └──────────┘  └────────────────────┼──┘  │  │
+│  │                                                                  │     │  │
+│  │  ┌──────────────┐                        ┌───────────────────────▼──┐  │  │
+│  │  │Elasticsearch │                        │    Ledger Service        │  │  │
+│  │  │ (Waybill     │                        │    (Double-Entry COD     │  │  │
+│  │  │  Search)     │                        │     Settlement)          │  │  │
+│  │  └──────────────┘                        └──────────────────────────┘  │  │
+│  └────────────────────────────────────────────────────────────────────────┘  │
+└───────────────────────────────────────────────────────────────────────────────┘
 ```
 
-## Compile and run the project
+### System Components
+
+| Component | Technology | Purpose |
+|---|---|---|
+| **API Gateway** | NestJS + Express | REST API with Swagger documentation |
+| **Auth** | Passport + JWT | Authentication with role-based access (Admin, Merchant, Courier) |
+| **Orders** | MongoDB + Mongoose | Order ingestion, CRUD, and status lifecycle management |
+| **Dispatch** | Redis GeoSets + Redlock | Geo-spatial courier lookup and concurrency-safe assignment |
+| **Tracking** | Socket.IO (WebSocket) | Real-time driver GPS telemetry ingestion |
+| **Search** | Elasticsearch | Fuzzy waybill search (tracking numbers, recipient names, cities) |
+| **Ledger** | PostgreSQL + TypeORM | Double-entry bookkeeping for COD financial settlement |
+| **Queue** | BullMQ (Redis) | Async order processing with exponential backoff retries |
+| **Events** | RabbitMQ | Event-driven inter-service communication (`order.delivered`) |
+| **Health** | @nestjs/terminus | Health checks for Postgres, MongoDB, Redis, Elasticsearch |
+| **Rate Limiting** | @nestjs/throttler | Global rate limiting (100 req/min) |
+
+---
+
+## Tech Stack
+
+- **Runtime**: Node.js 20+
+- **Framework**: NestJS 11
+- **Language**: TypeScript 5
+- **Databases**: MongoDB (documents), PostgreSQL (financials)
+- **Cache/Geo**: Redis (GeoSets, distributed locks, BullMQ)
+- **Search**: Elasticsearch 9
+- **Messaging**: RabbitMQ (AMQP)
+- **Real-time**: Socket.IO (WebSockets)
+- **Auth**: JWT + Passport with RBAC
+- **Docs**: Swagger/OpenAPI with Bearer Auth
+- **CI/CD**: GitHub Actions
+
+---
+
+## Getting Started
+
+### Prerequisites
+
+- [Node.js 20+](https://nodejs.org/)
+- [Docker](https://www.docker.com/) & Docker Compose
+
+### 1. Clone the repository
 
 ```bash
-# development
-$ npm run start
-
-# watch mode
-$ npm run start:dev
-
-# production mode
-$ npm run start:prod
+git clone https://github.com/mo74x/Fleetpulse.git
+cd Fleetpulse
 ```
 
-## Run tests
+### 2. Start infrastructure with Docker Compose
+
+Create a `docker-compose.yml` in the project root:
+
+```yaml
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:7
+    container_name: fleetpulse-mongo
+    ports:
+      - '27017:27017'
+    volumes:
+      - mongo_data:/data/db
+
+  postgres:
+    image: postgres:16-alpine
+    container_name: fleetpulse-postgres
+    environment:
+      POSTGRES_USER: fleetpulse
+      POSTGRES_PASSWORD: fleetpulse_secret
+      POSTGRES_DB: fleetpulse_ledger
+    ports:
+      - '5432:5432'
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+
+  redis:
+    image: redis:7-alpine
+    container_name: fleetpulse-redis
+    ports:
+      - '6379:6379'
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: fleetpulse-rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    ports:
+      - '5672:5672'
+      - '15672:15672'
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.12.0
+    container_name: fleetpulse-elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false
+      - 'ES_JAVA_OPTS=-Xms512m -Xmx512m'
+    ports:
+      - '9200:9200'
+    volumes:
+      - es_data:/usr/share/elasticsearch/data
+
+volumes:
+  mongo_data:
+  pg_data:
+  es_data:
+```
 
 ```bash
-# unit tests
-$ npm run test
-
-# e2e tests
-$ npm run test:e2e
-
-# test coverage
-$ npm run test:cov
+docker compose up -d
 ```
 
-## Deployment
+### 3. Configure environment
 
-When you're ready to deploy your NestJS application to production, there are some key steps you can take to ensure it runs as efficiently as possible. Check out the [deployment documentation](https://docs.nestjs.com/deployment) for more information.
+Create a `.env` file in the project root:
 
-If you are looking for a cloud-based platform to deploy your NestJS application, check out [Mau](https://mau.nestjs.com), our official platform for deploying NestJS applications on AWS. Mau makes deployment straightforward and fast, requiring just a few simple steps:
+```env
+PORT=3000
+NODE_ENV=development
+
+# MongoDB
+MONGO_URI=mongodb://localhost:27017/fleetpulse
+
+# PostgreSQL
+POSTGRES_HOST=localhost
+POSTGRES_PORT=5432
+POSTGRES_USER=fleetpulse
+POSTGRES_PASSWORD=fleetpulse_secret
+POSTGRES_DB=fleetpulse_ledger
+
+# Redis
+REDIS_HOST=localhost
+REDIS_PORT=6379
+
+# RabbitMQ
+RABBITMQ_URI=amqp://guest:guest@localhost:5672
+
+# Elasticsearch
+ELASTICSEARCH_NODE=http://localhost:9200
+
+# JWT
+JWT_SECRET=your-super-secret-jwt-key
+JWT_EXPIRATION=1d
+```
+
+### 4. Install dependencies & run
 
 ```bash
-$ npm install -g @nestjs/mau
-$ mau deploy
+npm install
+npm run start:dev
 ```
 
-With Mau, you can deploy your application in just a few clicks, allowing you to focus on building features rather than managing infrastructure.
+The API will be available at:
+- **HTTP API**: `http://localhost:3000`
+- **Swagger UI**: `http://localhost:3000/api/docs`
+- **Health Check**: `http://localhost:3000/health`
+- **RabbitMQ Dashboard**: `http://localhost:15672`
 
-## Resources
+---
 
-Check out a few resources that may come in handy when working with NestJS:
+## API Overview
 
-- Visit the [NestJS Documentation](https://docs.nestjs.com) to learn more about the framework.
-- For questions and support, please visit our [Discord channel](https://discord.gg/G7Qnnhy).
-- To dive deeper and get more hands-on experience, check out our official video [courses](https://courses.nestjs.com/).
-- Deploy your application to AWS with the help of [NestJS Mau](https://mau.nestjs.com) in just a few clicks.
-- Visualize your application graph and interact with the NestJS application in real-time using [NestJS Devtools](https://devtools.nestjs.com).
-- Need help with your project (part-time to full-time)? Check out our official [enterprise support](https://enterprise.nestjs.com).
-- To stay in the loop and get updates, follow us on [X](https://x.com/nestframework) and [LinkedIn](https://linkedin.com/company/nestjs).
-- Looking for a job, or have a job to offer? Check out our official [Jobs board](https://jobs.nestjs.com).
+### Authentication
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/auth/register` | Register a new user |
+| `POST` | `/api/v1/auth/login` | Login and receive JWT |
 
-## Support
+### Orders
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/orders` | Create a new order (async via BullMQ) |
+| `GET` | `/api/v1/orders` | List orders with pagination & filters |
+| `GET` | `/api/v1/orders/:id` | Get order by ID or tracking number |
+| `PATCH` | `/api/v1/orders/:id/status` | Update order status (state-machine validated) |
 
-Nest is an MIT-licensed open source project. It can grow thanks to the sponsors and support by the amazing backers. If you'd like to join them, please [read more here](https://docs.nestjs.com/support).
+### Dispatch
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/api/v1/dispatch/assign` | Assign nearest courier or specific courier (Redlock-protected) |
 
-## Stay in touch
+### Search
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/api/v1/search?q=<term>` | Fuzzy waybill search via Elasticsearch |
 
-- Author - [Kamil Myśliwiec](https://twitter.com/kammysliwiec)
-- Website - [https://nestjs.com](https://nestjs.com/)
-- Twitter - [@nestframework](https://twitter.com/nestframework)
+### Health
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/health` | Terminus health check (Postgres, MongoDB, Redis, Elasticsearch) |
+
+### WebSocket (Telemetry)
+| Event | Namespace | Description |
+|-------|-----------|-------------|
+| `driver_location` | `/telemetry` | Real-time driver GPS coordinates ingestion |
+
+---
+
+## Order Status Lifecycle
+
+```
+PENDING ──▶ ASSIGNED ──▶ IN_TRANSIT ──▶ DELIVERED
+   │            │             │
+   └──▶ FAILED  └──▶ FAILED  └──▶ FAILED
+```
+
+Each status transition is validated by a state machine. Invalid transitions (e.g., `DELIVERED → PENDING`) return a `400 Bad Request`.
+
+---
+
+## Testing
+
+```bash
+# Run all unit tests
+npm test
+
+# Run tests in watch mode
+npm run test:watch
+
+# Run tests with coverage report
+npm run test:cov
+```
+
+### Test Coverage
+
+| Service | Tests | What's Covered |
+|---------|-------|----------------|
+| `OrdersService` | 10 | Order creation, queue enqueue, pagination, filters, findOne by ID/tracking, status transitions |
+| `LedgerService` | 5 | COD payment processing, pessimistic locking, double-entry ledger entries, rollback on failure |
+| `SearchService` | 7 | Index initialization, document indexing/updating, fuzzy search, error resilience |
+
+---
+
+## CI/CD
+
+The project includes a GitHub Actions pipeline (`.github/workflows/ci.yml`) that runs on every push/PR to `main`:
+
+1. **Lint** — ESLint with TypeScript rules
+2. **Build** — TypeScript compilation
+3. **Test** — Jest unit tests with coverage
+
+---
+
+## Project Structure
+
+```
+src/
+├── auth/                    # JWT authentication & RBAC
+│   ├── auth.controller.ts
+│   ├── auth.service.ts
+│   ├── jwt.strategy.ts
+│   ├── roles.guard.ts
+│   └── user.schema.ts
+├── dispatch/                # Courier assignment & tracking
+│   ├── dispatch/
+│   │   ├── dispatch.controller.ts
+│   │   └── dispatch.service.ts
+│   ├── redis/
+│   │   └── redis.service.ts
+│   └── tracking/
+│       └── tracking.gateway.ts
+├── health/                  # Terminus health indicators
+│   ├── health.controller.ts
+│   └── health.module.ts
+├── ledger/                  # Financial double-entry ledger
+│   ├── entities/
+│   │   ├── account.entity.ts
+│   │   └── ledger-entry.entity.ts
+│   ├── ledger.controller.ts
+│   └── ledger.service.ts
+├── orders/                  # Order CRUD & lifecycle
+│   ├── dto/
+│   │   ├── create-order.dto.ts
+│   │   ├── order-query.dto.ts
+│   │   └── update-order-status.dto.ts
+│   ├── schemas/
+│   │   └── order.schema.ts
+│   ├── orders.controller.ts
+│   └── orders.service.ts
+├── search/                  # Elasticsearch waybill search
+│   ├── search.controller.ts
+│   └── search.service.ts
+├── app.module.ts
+└── main.ts
+```
+
+---
 
 ## License
 
-Nest is [MIT licensed](https://github.com/nestjs/nest/blob/master/LICENSE).
+This project is [MIT licensed](LICENSE).
