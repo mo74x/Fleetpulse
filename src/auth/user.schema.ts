@@ -21,7 +21,12 @@ export class User {
   @Prop({ required: true })
   name: string;
 
-  @Prop({ required: true, enum: UserRole, default: UserRole.MERCHANT })
+  @Prop({
+    required: true,
+    type: String,
+    enum: UserRole,
+    default: UserRole.MERCHANT,
+  })
   role: UserRole;
 
   createdAt?: Date;

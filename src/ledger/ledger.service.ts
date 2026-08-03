@@ -8,7 +8,7 @@ import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Account, AccountType } from './entities/account.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
 
 @Injectable()
 export class LedgerService {
@@ -32,7 +32,7 @@ export class LedgerService {
     await queryRunner.startTransaction();
 
     try {
-      const transactionId = uuidv4();
+      const transactionId = randomUUID();
       const merchantPayout = codAmount - platformFee;
 
       //Fetch Accounts with a Pessimistic Write Lock (SELECT FOR UPDATE)

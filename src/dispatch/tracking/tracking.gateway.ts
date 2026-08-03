@@ -12,7 +12,13 @@ import { Socket } from 'socket.io';
 import { RedisService } from '../redis/redis.service';
 import { Logger } from '@nestjs/common';
 
-@WebSocketGateway({ cors: true, namespace: 'telemetry' })
+@WebSocketGateway({
+  cors: {
+    origin: process.env.CORS_ORIGIN ? process.env.CORS_ORIGIN.split(',') : '*',
+    credentials: true,
+  },
+  namespace: 'telemetry',
+})
 export class TrackingGateway
   implements OnGatewayConnection, OnGatewayDisconnect
 {

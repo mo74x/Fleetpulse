@@ -9,6 +9,11 @@ import { UserRole } from './user-role.enum';
 import { ConflictException, UnauthorizedException } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 
+jest.mock('bcrypt', () => ({
+  hash: jest.fn(),
+  compare: jest.fn(),
+}));
+
 describe('AuthService', () => {
   let service: AuthService;
 
@@ -65,9 +70,7 @@ describe('AuthService', () => {
   describe('register', () => {
     it('should register a new user successfully and return JWT token', async () => {
       MockUserModel.findOne.mockResolvedValue(null);
-      jest
-        .spyOn(bcrypt, 'hash')
-        .mockImplementation(() => Promise.resolve('hashedPassword'));
+      (bcrypt.hash as jest.Mock).mockResolvedValue('hashedPassword');
 
       const registerDto = {
         email: 'TEST@merchant.com',
@@ -114,9 +117,7 @@ describe('AuthService', () => {
         updatedAt: new Date(),
       };
       MockUserModel.findOne.mockResolvedValue(existingUser);
-      jest
-        .spyOn(bcrypt, 'compare')
-        .mockImplementation(() => Promise.resolve(true));
+      (bcrypt.compare as jest.Mock).mockResolvedValue(true);
 
       const loginDto = {
         email: 'test@merchant.com',
@@ -148,9 +149,7 @@ describe('AuthService', () => {
         passwordHash: 'hashedPassword',
       };
       MockUserModel.findOne.mockResolvedValue(existingUser);
-      jest
-        .spyOn(bcrypt, 'compare')
-        .mockImplementation(() => Promise.resolve(false));
+      (bcrypt.compare as jest.Mock).mockResolvedValue(false);
 
       const loginDto = {
         email: 'test@merchant.com',

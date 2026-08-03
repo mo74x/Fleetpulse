@@ -17,7 +17,9 @@ import {
   UpdateOrderStatusDto,
   OrderStatus,
 } from './dto/update-order-status.dto';
-import { v4 as uuidv4 } from 'uuid';
+import { randomUUID } from 'crypto';
+
+import { CorrelationContext } from '../common/context/correlation-context';
 
 @Injectable()
 export class OrdersService {
@@ -29,12 +31,14 @@ export class OrdersService {
 
   async createOrder(createOrderDto: CreateOrderDto) {
     // Generate a mock tracking number instantly
-    const trackingNumber = `BSTA-${uuidv4().substring(0, 8).toUpperCase()}-EG`;
+    const trackingNumber = `BSTA-${randomUUID().substring(0, 8).toUpperCase()}-EG`;
+    const correlationId = CorrelationContext.getCorrelationId();
     const payload = {
       ...createOrderDto,
       trackingNumber,
       status: 'PENDING',
       createdAt: new Date(),
+      correlationId,
     };
 
     // Push to Redis Queue with retry mechanisms
@@ -124,12 +128,14 @@ export class OrdersService {
     const savedOrder = await order.save();
 
     if (newStatus === OrderStatus.DELIVERED) {
+      const correlationId = CorrelationContext.getCorrelationId();
       this.clientProxy.emit('order.delivered', {
         trackingNumber: savedOrder.trackingNumber,
         merchantId: savedOrder.merchantId,
         courierId: savedOrder.courierId,
         packageDetails: savedOrder.packageDetails,
         status: savedOrder.status,
+        correlationId,
       });
     }
 

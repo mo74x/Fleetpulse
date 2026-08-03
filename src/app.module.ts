@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Module } from '@nestjs/common';
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { OrdersModule } from './orders/orders.module';
 import { BullModule } from '@nestjs/bullmq';
@@ -13,8 +13,13 @@ import { LedgerModule } from './ledger/ledger.module';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
-import { APP_GUARD } from '@nestjs/core';
+import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { HealthModule } from './health/health.module';
+import { LoggerModule } from 'nestjs-pino';
+import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
+import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
+import { CorrelationContext } from './common/context/correlation-context';
+import { randomUUID } from 'crypto';
 
 @Module({
   imports: [
@@ -37,7 +42,31 @@ import { HealthModule } from './health/health.module';
         ELASTICSEARCH_NODE: Joi.string().required(),
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().default('1d'),
+        CORS_ORIGIN: Joi.string().default('*'),
       }),
+    }),
+    LoggerModule.forRootAsync({
+      imports: [ConfigModule],
+      useFactory: (configService: ConfigService) => {
+        const isDev = configService.get<string>('NODE_ENV') !== 'production';
+        return {
+          pinoHttp: {
+            level: isDev ? 'debug' : 'info',
+            transport: isDev
+              ? {
+                  target: 'pino-pretty',
+                  options: { singleLine: true },
+                }
+              : undefined,
+            customProps: () => ({
+              correlationId: CorrelationContext.getCorrelationId(),
+            }),
+            genReqId: (req) =>
+              (req.headers['x-request-id'] as string) || randomUUID(),
+          },
+        };
+      },
+      inject: [ConfigService],
     }),
     ThrottlerModule.forRoot([
       {
@@ -72,7 +101,9 @@ import { HealthModule } from './health/health.module';
         password: configService.get<string>('POSTGRES_PASSWORD'),
         database: configService.get<string>('POSTGRES_DB'),
         entities: [__dirname + '/**/*.entity{.ts,.js}'],
-        synchronize: true, //Use migrations in prod
+        migrations: [__dirname + '/database/migrations/*{.ts,.js}'],
+        synchronize: false,
+        migrationsRun: configService.get<string>('NODE_ENV') === 'production',
       }),
       inject: [ConfigService],
     }),
@@ -88,6 +119,14 @@ import { HealthModule } from './health/health.module';
       provide: APP_GUARD,
       useClass: ThrottlerGuard,
     },
+    {
+      provide: APP_FILTER,
+      useClass: AllExceptionsFilter,
+    },
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(CorrelationIdMiddleware).forRoutes('*');
+  }
+}
