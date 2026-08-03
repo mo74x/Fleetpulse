@@ -1,17 +1,22 @@
-// src/orders/orders.service.ts
+/* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
+  Inject,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
 import { InjectModel } from '@nestjs/mongoose';
 import { Model, isValidObjectId } from 'mongoose';
+import { ClientProxy } from '@nestjs/microservices';
 import { Order, OrderDocument } from './schemas/order.schema';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
-import { UpdateOrderStatusDto, OrderStatus } from './dto/update-order-status.dto';
+import {
+  UpdateOrderStatusDto,
+  OrderStatus,
+} from './dto/update-order-status.dto';
 import { v4 as uuidv4 } from 'uuid';
 
 @Injectable()
@@ -19,6 +24,7 @@ export class OrdersService {
   constructor(
     @InjectQueue('orders-queue') private ordersQueue: Queue,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
+    @Inject('RABBITMQ_SERVICE') private readonly clientProxy: ClientProxy,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -115,7 +121,19 @@ export class OrdersService {
       order.courierId = updateStatusDto.courierId;
     }
 
-    return order.save();
+    const savedOrder = await order.save();
+
+    if (newStatus === OrderStatus.DELIVERED) {
+      this.clientProxy.emit('order.delivered', {
+        trackingNumber: savedOrder.trackingNumber,
+        merchantId: savedOrder.merchantId,
+        courierId: savedOrder.courierId,
+        packageDetails: savedOrder.packageDetails,
+        status: savedOrder.status,
+      });
+    }
+
+    return savedOrder;
   }
 
   private validateStatusTransition(
@@ -140,4 +158,3 @@ export class OrdersService {
     }
   }
 }
-

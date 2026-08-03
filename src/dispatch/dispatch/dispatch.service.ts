@@ -1,15 +1,19 @@
-/* eslint-disable @typescript-eslint/no-unused-vars */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
+import { OrdersService } from '../../orders/orders.service';
+import { OrderStatus } from '../../orders/dto/update-order-status.dto';
 
 @Injectable()
 export class DispatchService {
   private readonly logger = new Logger(DispatchService.name);
 
-  constructor(private readonly redisService: RedisService) {}
+  constructor(
+    private readonly redisService: RedisService,
+    private readonly ordersService: OrdersService,
+  ) {}
 
   /**
    * Find couriers within a specific radius (e.g., 5 km)
@@ -71,24 +75,34 @@ export class DispatchService {
       );
 
       try {
-        // Perform the business logic
-        // Simulate database latency
-        await new Promise((resolve) => setTimeout(resolve, 500));
+        // Perform the business logic: update MongoDB order state
+        const updatedOrder = await this.ordersService.updateStatus(orderId, {
+          status: OrderStatus.ASSIGNED,
+          courierId,
+        });
 
         this.logger.log(
           `Order ${orderId} successfully assigned to ${courierId}`,
         );
 
-        return { success: true, orderId, courierId, status: 'ASSIGNED' };
+        return {
+          success: true,
+          orderId: updatedOrder._id.toString(),
+          courierId: updatedOrder.courierId,
+          status: updatedOrder.status,
+        };
       } finally {
         // Release the lock
         await lock.release();
         this.logger.log(`Lock released for Order ${orderId}`);
       }
     } catch (error) {
+      if (error instanceof ConflictException) {
+        throw error;
+      }
       // Redlock throws an ExecutionError if the lock is already held
       this.logger.warn(
-        `Race condition prevented! Order ${orderId} is currently being dispatched.`,
+        `Race condition or assignment failure for Order ${orderId}: ${error.message}`,
       );
       throw new ConflictException(
         `Order ${orderId} is currently being processed by another worker or courier.`,

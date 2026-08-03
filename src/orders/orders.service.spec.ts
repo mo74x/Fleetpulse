@@ -27,12 +27,17 @@ describe('OrdersService', () => {
     countDocuments: jest.fn(),
   };
 
+  const mockClientProxy = {
+    emit: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         OrdersService,
         { provide: getQueueToken('orders-queue'), useValue: mockQueue },
         { provide: getModelToken(Order.name), useValue: mockOrderModel },
+        { provide: 'RABBITMQ_SERVICE', useValue: mockClientProxy },
       ],
     }).compile();
 
@@ -246,6 +251,35 @@ describe('OrdersService', () => {
 
       await service.updateStatus('order-3', { status: 'IN_TRANSIT' as any });
       expect(fakeOrder.save).toHaveBeenCalled();
+    });
+
+    it('should emit order.delivered event when status becomes DELIVERED', async () => {
+      const fakeOrder = {
+        _id: 'order-4',
+        status: 'IN_TRANSIT',
+        trackingNumber: 'BSTA-12345678-EG',
+        merchantId: 'merchant-1',
+        courierId: 'courier-1',
+        packageDetails: { codAmountValue: 150 },
+        save: jest.fn().mockImplementation(function () {
+          return Promise.resolve(this);
+        }),
+      };
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(fakeOrder),
+      });
+
+      await service.updateStatus('order-4', { status: 'DELIVERED' as any });
+
+      expect(mockClientProxy.emit).toHaveBeenCalledWith(
+        'order.delivered',
+        expect.objectContaining({
+          trackingNumber: 'BSTA-12345678-EG',
+          merchantId: 'merchant-1',
+          courierId: 'courier-1',
+          status: 'DELIVERED',
+        }),
+      );
     });
   });
 });
