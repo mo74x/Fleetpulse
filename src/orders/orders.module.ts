@@ -9,6 +9,7 @@ import { MongooseModule } from '@nestjs/mongoose';
 import { Order, OrderSchema } from './schemas/order.schema';
 import { SearchModule } from 'src/search/search.module';
 import { OrdersSyncService } from './orders.sync.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { OrdersSyncService } from './orders.sync.service';
     ]),
     MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]),
     SearchModule,
+    NotificationsModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersProcessor, OrdersSyncService],

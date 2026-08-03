@@ -15,6 +15,7 @@ import { AuthModule } from './auth/auth.module';
 import { ThrottlerModule, ThrottlerGuard } from '@nestjs/throttler';
 import { APP_GUARD, APP_FILTER } from '@nestjs/core';
 import { HealthModule } from './health/health.module';
+import { NotificationsModule } from './notifications/notifications.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -43,6 +44,15 @@ import { randomUUID } from 'crypto';
         JWT_SECRET: Joi.string().required(),
         JWT_EXPIRATION: Joi.string().default('1d'),
         CORS_ORIGIN: Joi.string().default('*'),
+        EMAIL_HOST: Joi.string().optional(),
+        EMAIL_PORT: Joi.number().optional(),
+        EMAIL_USER: Joi.string().optional(),
+        EMAIL_PASS: Joi.string().optional(),
+        SENDGRID_API_KEY: Joi.string().optional(),
+        TWILIO_ACCOUNT_SID: Joi.string().optional(),
+        TWILIO_AUTH_TOKEN: Joi.string().optional(),
+        TWILIO_PHONE_NUMBER: Joi.string().optional(),
+        FCM_SERVER_KEY: Joi.string().optional(),
       }),
     }),
     LoggerModule.forRootAsync({
@@ -113,6 +123,7 @@ import { randomUUID } from 'crypto';
     SearchModule,
     LedgerModule,
     HealthModule,
+    NotificationsModule,
   ],
   providers: [
     {

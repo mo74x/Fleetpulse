@@ -20,6 +20,7 @@ import {
 import { randomUUID } from 'crypto';
 
 import { CorrelationContext } from '../common/context/correlation-context';
+import { NotificationsService } from '../notifications/notifications.service';
 
 @Injectable()
 export class OrdersService {
@@ -27,6 +28,7 @@ export class OrdersService {
     @InjectQueue('orders-queue') private ordersQueue: Queue,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @Inject('RABBITMQ_SERVICE') private readonly clientProxy: ClientProxy,
+    private readonly notificationsService?: NotificationsService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -137,6 +139,18 @@ export class OrdersService {
         status: savedOrder.status,
         correlationId,
       });
+    }
+
+    if (this.notificationsService) {
+      await this.notificationsService.notifyOrderStatusChange(
+        {
+          trackingNumber: savedOrder.trackingNumber,
+          merchantId: savedOrder.merchantId,
+          status: savedOrder.status,
+          recipient: savedOrder.recipient,
+        },
+        currentStatus,
+      );
     }
 
     return savedOrder;
