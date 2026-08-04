@@ -1,4 +1,11 @@
-import { IsString, IsNotEmpty, IsEnum, IsOptional } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsEnum,
+  IsOptional,
+  IsArray,
+  IsObject,
+} from 'class-validator';
 
 export enum OrderStatus {
   PENDING = 'PENDING',
@@ -18,4 +25,16 @@ export class UpdateOrderStatusDto {
   @IsString()
   @IsOptional()
   courierId?: string;
+
+  @IsString()
+  @IsOptional()
+  actor?: string;
+
+  @IsArray()
+  @IsOptional()
+  location?: number[];
+
+  @IsObject()
+  @IsOptional()
+  details?: Record<string, any>;
 }

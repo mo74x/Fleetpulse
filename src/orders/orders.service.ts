@@ -1,9 +1,11 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 import {
   Injectable,
   NotFoundException,
   BadRequestException,
   Inject,
+  Optional,
 } from '@nestjs/common';
 import { InjectQueue } from '@nestjs/bullmq';
 import { Queue } from 'bullmq';
@@ -29,21 +31,37 @@ export class OrdersService {
     @InjectQueue('orders-queue') private ordersQueue: Queue,
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @Inject('RABBITMQ_SERVICE') private readonly clientProxy: ClientProxy,
-    private readonly notificationsService?: NotificationsService,
-    private readonly courierService?: CourierService,
+    @Optional() private readonly notificationsService?: NotificationsService,
+    @Optional() private readonly courierService?: CourierService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
     // Generate a mock tracking number instantly
     const trackingNumber = `BSTA-${randomUUID().substring(0, 8).toUpperCase()}-EG`;
     const correlationId = CorrelationContext.getCorrelationId();
+    const createdEvent = {
+      timestamp: new Date(),
+      action: 'CREATED',
+      actor: createOrderDto.merchantId || 'system',
+    };
+
     const payload = {
       ...createOrderDto,
       trackingNumber,
       status: 'PENDING',
       createdAt: new Date(),
       correlationId,
+      events: [createdEvent],
     };
+
+    if (this.orderModel && typeof this.orderModel.create === 'function') {
+      await this.orderModel.create({
+        ...createOrderDto,
+        trackingNumber,
+        status: OrderStatus.PENDING,
+        events: [createdEvent],
+      });
+    }
 
     // Push to Redis Queue with retry mechanisms
     await this.ordersQueue.add('process-order', payload, {
@@ -114,6 +132,41 @@ export class OrdersService {
     return order;
   }
 
+  async getOrderHistory(idOrTrackingNumber: string) {
+    const order = await this.findOne(idOrTrackingNumber);
+    return {
+      orderId: order._id ? order._id.toString() : undefined,
+      trackingNumber: order.trackingNumber,
+      status: order.status,
+      events: order.events || [],
+    };
+  }
+
+  async addOrderEvent(
+    idOrTrackingNumber: string,
+    eventData: {
+      action: string;
+      actor: string;
+      courierId?: string;
+      location?: number[];
+      details?: Record<string, any>;
+    },
+  ): Promise<OrderDocument> {
+    const order = await this.findOne(idOrTrackingNumber);
+    if (!order.events) {
+      order.events = [];
+    }
+    order.events.push({
+      timestamp: new Date(),
+      action: eventData.action,
+      actor: eventData.actor,
+      courierId: eventData.courierId || order.courierId,
+      location: eventData.location,
+      details: eventData.details,
+    });
+    return order.save();
+  }
+
   async updateStatus(
     id: string,
     updateStatusDto: UpdateOrderStatusDto,
@@ -128,6 +181,33 @@ export class OrdersService {
     if (updateStatusDto.courierId) {
       order.courierId = updateStatusDto.courierId;
     }
+
+    if (!order.events) {
+      order.events = [];
+    }
+
+    const actor =
+      updateStatusDto.actor ||
+      (newStatus === OrderStatus.ASSIGNED
+        ? 'system'
+        : updateStatusDto.courierId || order.courierId || 'system');
+
+    const eventRecord: any = {
+      timestamp: new Date(),
+      action: newStatus,
+      actor,
+    };
+    if (updateStatusDto.courierId || order.courierId) {
+      eventRecord.courierId = updateStatusDto.courierId || order.courierId;
+    }
+    if (updateStatusDto.location) {
+      eventRecord.location = updateStatusDto.location;
+    }
+    if (updateStatusDto.details) {
+      eventRecord.details = updateStatusDto.details;
+    }
+
+    order.events.push(eventRecord);
 
     const savedOrder = await order.save();
 

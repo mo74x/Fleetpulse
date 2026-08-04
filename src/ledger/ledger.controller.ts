@@ -28,6 +28,7 @@ export class LedgerController {
         data.merchantId,
         data.packageDetails.codAmountValue,
         platformFee,
+        data.trackingNumber,
       );
 
       // Manually acknowledge the message in RabbitMQ so it is removed from the queue

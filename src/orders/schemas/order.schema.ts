@@ -48,6 +48,29 @@ export class PackageDetails {
   currency: string;
 }
 
+@Schema({ _id: false })
+export class OrderEvent {
+  @Prop({ required: true, default: () => new Date() })
+  timestamp: Date;
+
+  @Prop({ required: true })
+  action: string;
+
+  @Prop({ required: true })
+  actor: string;
+
+  @Prop({ default: null })
+  courierId?: string;
+
+  @Prop({ type: [Number], default: undefined })
+  location?: number[];
+
+  @Prop({ type: Object, default: undefined })
+  details?: Record<string, any>;
+}
+
+export const OrderEventSchema = SchemaFactory.createForClass(OrderEvent);
+
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ required: true, unique: true, index: true })
@@ -71,6 +94,9 @@ export class Order {
 
   @Prop({ type: PackageDetails, required: true })
   packageDetails: PackageDetails;
+
+  @Prop({ type: [OrderEventSchema], default: [] })
+  events: OrderEvent[];
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

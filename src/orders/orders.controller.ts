@@ -43,6 +43,12 @@ export class OrdersController {
     return this.ordersService.findOne(id);
   }
 
+  @Get(':id/history')
+  @Roles(UserRole.ADMIN, UserRole.MERCHANT, UserRole.COURIER)
+  async getHistory(@Param('id') id: string) {
+    return this.ordersService.getOrderHistory(id);
+  }
+
   @Patch(':id/status')
   @Roles(UserRole.ADMIN, UserRole.COURIER, UserRole.MERCHANT)
   async updateStatus(

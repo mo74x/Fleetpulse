@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
@@ -5,6 +6,8 @@ import { getQueueToken } from '@nestjs/bullmq';
 import { getModelToken } from '@nestjs/mongoose';
 import { Order } from './schemas/order.schema';
 import { NotFoundException, BadRequestException } from '@nestjs/common';
+import { NotificationsService } from '../notifications/notifications.service';
+import { CourierService } from '../dispatch/courier.service';
 
 describe('OrdersService', () => {
   let service: OrdersService;
@@ -31,6 +34,16 @@ describe('OrdersService', () => {
     emit: jest.fn(),
   };
 
+  const mockNotificationsService = {
+    sendNotification: jest.fn(),
+    notifyOrderStatusChange: jest.fn(),
+  };
+
+  const mockCourierService = {
+    assignCourier: jest.fn(),
+    decrementActiveOrders: jest.fn(),
+  };
+
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -38,6 +51,8 @@ describe('OrdersService', () => {
         { provide: getQueueToken('orders-queue'), useValue: mockQueue },
         { provide: getModelToken(Order.name), useValue: mockOrderModel },
         { provide: 'RABBITMQ_SERVICE', useValue: mockClientProxy },
+        { provide: NotificationsService, useValue: mockNotificationsService },
+        { provide: CourierService, useValue: mockCourierService },
       ],
     }).compile();
 
@@ -261,6 +276,7 @@ describe('OrdersService', () => {
         merchantId: 'merchant-1',
         courierId: 'courier-1',
         packageDetails: { codAmountValue: 150 },
+        events: [] as any[],
         save: jest.fn().mockImplementation(function () {
           return Promise.resolve(this);
         }),
@@ -280,6 +296,101 @@ describe('OrdersService', () => {
           status: 'DELIVERED',
         }),
       );
+      expect(fakeOrder.events.length).toBeGreaterThan(0);
+      expect(fakeOrder.events[0].action).toBe('DELIVERED');
+    });
+
+    it('should append an audit event with location and actor during status update', async () => {
+      const fakeOrder = {
+        _id: 'order-5',
+        status: 'IN_TRANSIT',
+        courierId: 'courier_042',
+        events: [] as any[],
+        save: jest.fn().mockImplementation(function () {
+          return Promise.resolve(this);
+        }),
+      };
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(fakeOrder),
+      });
+
+      await service.updateStatus('order-5', {
+        status: 'DELIVERED' as any,
+        actor: 'courier_042',
+        location: [31.2, 30.0],
+      });
+
+      expect(fakeOrder.events).toHaveLength(1);
+      expect(fakeOrder.events[0]).toMatchObject({
+        action: 'DELIVERED',
+        actor: 'courier_042',
+        location: [31.2, 30.0],
+      });
+    });
+  });
+
+  // ─── audit trail & history ─────────────────────────────────────────────
+  describe('audit trail & history', () => {
+    it('should add custom order event via addOrderEvent', async () => {
+      const fakeOrder = {
+        _id: 'order-6',
+        trackingNumber: 'BSTA-11112222-EG',
+        status: 'DELIVERED',
+        events: [] as any[],
+        save: jest.fn().mockImplementation(function () {
+          return Promise.resolve(this);
+        }),
+      };
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(fakeOrder),
+      });
+
+      await service.addOrderEvent('BSTA-11112222-EG', {
+        action: 'FINANCIAL_TRANSACTION',
+        actor: 'system',
+        courierId: 'courier_042',
+        details: { transactionId: 'tx-123', codAmount: 200 },
+      });
+
+      expect(fakeOrder.events).toHaveLength(1);
+      expect(fakeOrder.events[0].action).toBe('FINANCIAL_TRANSACTION');
+      expect(fakeOrder.events[0].details).toEqual({
+        transactionId: 'tx-123',
+        codAmount: 200,
+      });
+    });
+
+    it('should return full order history via getOrderHistory', async () => {
+      const mockEvents = [
+        { timestamp: new Date(), action: 'CREATED', actor: 'merchant_001' },
+        {
+          timestamp: new Date(),
+          action: 'ASSIGNED',
+          actor: 'system',
+          courierId: 'courier_042',
+        },
+        {
+          timestamp: new Date(),
+          action: 'DELIVERED',
+          actor: 'courier_042',
+          location: [31.2, 30.0],
+        },
+      ];
+      const fakeOrder = {
+        _id: 'order-7',
+        trackingNumber: 'BSTA-33334444-EG',
+        status: 'DELIVERED',
+        events: mockEvents,
+      };
+      mockOrderModel.findOne.mockReturnValue({
+        exec: jest.fn().mockResolvedValue(fakeOrder),
+      });
+
+      const history = await service.getOrderHistory('BSTA-33334444-EG');
+
+      expect(history.orderId).toBe('order-7');
+      expect(history.trackingNumber).toBe('BSTA-33334444-EG');
+      expect(history.events).toEqual(mockEvents);
     });
   });
 });

@@ -3,18 +3,23 @@ import {
   Injectable,
   Logger,
   InternalServerErrorException,
+  Optional,
 } from '@nestjs/common';
 import { InjectDataSource } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
 import { Account, AccountType } from './entities/account.entity';
 import { LedgerEntry } from './entities/ledger-entry.entity';
 import { randomUUID } from 'crypto';
+import { OrdersService } from '../orders/orders.service';
 
 @Injectable()
 export class LedgerService {
   private readonly logger = new Logger(LedgerService.name);
 
-  constructor(@InjectDataSource() private dataSource: DataSource) {}
+  constructor(
+    @InjectDataSource() private dataSource: DataSource,
+    @Optional() private readonly ordersService?: OrdersService,
+  ) {}
 
   /**
    * Process a Cash-on-Delivery (COD) payment when a package is delivered.
@@ -24,6 +29,7 @@ export class LedgerService {
     merchantId: string,
     codAmount: number,
     platformFee: number,
+    orderId?: string,
   ) {
     const queryRunner = this.dataSource.createQueryRunner();
 
@@ -111,6 +117,27 @@ export class LedgerService {
       this.logger.log(
         `COD Transaction ${transactionId} processed successfully.`,
       );
+
+      // Record immutable audit event for financial transaction
+      if (orderId && this.ordersService) {
+        try {
+          await this.ordersService.addOrderEvent(orderId, {
+            action: 'FINANCIAL_TRANSACTION',
+            actor: 'system',
+            courierId,
+            details: {
+              transactionId,
+              codAmount,
+              platformFee,
+              merchantPayout,
+            },
+          });
+        } catch (err) {
+          this.logger.warn(
+            `Failed to log financial transaction audit event for order ${orderId}: ${err.message}`,
+          );
+        }
+      }
 
       return { success: true, transactionId };
     } catch (error) {
