@@ -46,9 +46,10 @@
 | 📍 **Geo-Spatial Dispatch** | Nearest courier assignment using Redis GeoSets with configurable radius search |
 | 🔒 **Distributed Locking** | Redlock-based concurrency control prevents double-dispatch race conditions |
 | 📡 **Real-Time Tracking** | Socket.IO WebSocket gateway for live driver GPS telemetry ingestion |
+| 📸 **Proof of Delivery (POD)** | Package photo & signature (file/base64) uploads stored in S3 bucket |
 | 🔍 **Fuzzy Search** | Elasticsearch-powered waybill search across tracking numbers, names, and cities |
 | 💰 **Double-Entry Ledger** | PostgreSQL-backed financial settlement with pessimistic locking and atomic transactions |
-| 🔐 **JWT + RBAC** | Role-based access control with Admin, Merchant, and Courier roles |
+| 🔐 **JWT + Refresh Tokens** | Short-lived access tokens (15m), rotatable refresh tokens (7d), and logout revocation |
 | 🏥 **Health Monitoring** | Terminus-based health checks for all infrastructure dependencies |
 | ⚡ **Rate Limiting** | Global throttling at 100 requests/minute to protect against abuse |
 | 🐳 **Container-Ready** | Multi-stage Docker builds and Kubernetes manifests with HPA autoscaling |
@@ -196,7 +197,7 @@ sequenceDiagram
 | Component | Technology | Purpose |
 |:--|:--|:--|
 | **API Gateway** | NestJS + Express | REST API with Swagger/OpenAPI documentation |
-| **Auth** | Passport + JWT + bcrypt | Authentication with role-based access (Admin, Merchant, Courier) |
+| **Auth** | Passport + JWT + bcrypt | Short-lived access tokens (15m), rotatable refresh tokens (7d), RBAC, and logout revocation |
 | **Orders** | MongoDB + Mongoose | Order ingestion, CRUD, and status lifecycle management |
 | **Dispatch** | Redis GeoSets + Redlock | Geo-spatial courier lookup and concurrency-safe assignment |
 | **Tracking** | Socket.IO (WebSocket) | Real-time driver GPS telemetry ingestion via `/telemetry` namespace |
@@ -236,6 +237,10 @@ mindmap
       JWT — Passport
       bcrypt — Password Hashing
       RBAC — Role Guards
+      Refresh Token Rotation
+      Token Revocation
+    Storage
+      AWS S3 — POD File Uploads
     DevOps
       Docker — Multi-Stage Build
       Kubernetes — HPA Autoscaling
@@ -257,7 +262,8 @@ mindmap
 | **Queue** | `bullmq` | 5.x | Redis-backed job queue with retries |
 | **Search** | `@elastic/elasticsearch` | 9.x | Elasticsearch client for waybill search |
 | **Messaging** | `amqplib` + `amqp-connection-manager` | 2.x / 5.x | RabbitMQ AMQP client |
-| **Auth** | `@nestjs/jwt` + `passport-jwt` + `bcrypt` | 11.x / 4.x / 6.x | JWT signing, strategy, password hashing |
+| **Auth** | `@nestjs/jwt` + `passport-jwt` + `bcrypt` | 11.x / 4.x / 6.x | JWT signing, refresh token rotation, password hashing |
+| **Storage** | `@aws-sdk/client-s3` | 3.x | S3-compatible file uploads for POD photos and signatures |
 | **WebSocket** | `socket.io` + `@nestjs/websockets` | 4.x / 11.x | Real-time bidirectional communication |
 | **Health** | `@nestjs/terminus` | 11.x | Health check endpoints |
 | **Docs** | `@nestjs/swagger` + `swagger-ui-express` | 11.x / 5.x | Auto-generated API documentation |
@@ -391,6 +397,7 @@ erDiagram
         string passwordHash "bcrypt, 10 rounds"
         string name
         enum role "ADMIN | MERCHANT | COURIER"
+        string refreshTokenHash "bcrypt, nullable"
         Date createdAt
         Date updatedAt
     }
@@ -516,7 +523,16 @@ ELASTICSEARCH_NODE=http://localhost:9200
 
 # JWT
 JWT_SECRET=your-super-secret-jwt-key
-JWT_EXPIRATION=1d
+JWT_EXPIRATION=15m
+JWT_REFRESH_SECRET=your-refresh-token-secret
+JWT_REFRESH_EXPIRATION=7d
+
+# S3 Storage (POD uploads)
+S3_ENDPOINT=http://localhost:9000
+S3_REGION=us-east-1
+S3_BUCKET=fleetpulse-pod
+S3_ACCESS_KEY_ID=your-access-key
+S3_SECRET_ACCESS_KEY=your-secret-key
 ```
 
 > **Note**: All environment variables are validated at startup using Joi. The app will fail fast with a descriptive error if any required variable is missing.
@@ -543,11 +559,11 @@ npm run start:dev
 
 ### 🔐 Authentication
 
-All protected routes require a `Bearer` token in the `Authorization` header.
+All protected routes require a `Bearer` token in the `Authorization` header. Access tokens expire after **15 minutes**; use the refresh endpoint to obtain new tokens without re-authenticating.
 
 #### `POST /api/v1/auth/register`
 
-Register a new user account.
+Register a new user account. Returns a short-lived access token and a long-lived refresh token.
 
 <details>
 <summary><b>Request / Response</b></summary>
@@ -566,6 +582,7 @@ Register a new user account.
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": "667f1a2b3c4d5e6f7a8b9c0d",
     "email": "ahmed@merchant.com",
@@ -590,7 +607,7 @@ Register a new user account.
 
 #### `POST /api/v1/auth/login`
 
-Authenticate and receive a JWT token.
+Authenticate and receive access + refresh tokens.
 
 <details>
 <summary><b>Request / Response</b></summary>
@@ -607,6 +624,7 @@ Authenticate and receive a JWT token.
 ```json
 {
   "token": "eyJhbGciOiJIUzI1NiIs...",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
   "user": {
     "id": "667f1a2b3c4d5e6f7a8b9c0d",
     "email": "ahmed@merchant.com",
@@ -626,6 +644,62 @@ Authenticate and receive a JWT token.
   "error": "Unauthorized"
 }
 ```
+
+</details>
+
+#### `POST /api/v1/auth/refresh`
+
+Rotate tokens using a valid refresh token. Issues a new access token and a new refresh token, and invalidates the previous refresh token.
+
+<details>
+<summary><b>Request / Response</b></summary>
+
+**Request Body:**
+```json
+{
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
+}
+```
+
+**Response `200`:**
+```json
+{
+  "token": "eyJhbGciOiJIUzI1NiIs...(new)",
+  "refreshToken": "eyJhbGciOiJIUzI1NiIs...(new)"
+}
+```
+
+**Error `401`:**
+```json
+{
+  "statusCode": 401,
+  "message": "Invalid or revoked refresh token",
+  "error": "Unauthorized"
+}
+```
+
+</details>
+
+#### `POST /api/v1/auth/logout` 🔒
+
+Revoke the current refresh token. Requires a valid access token in the `Authorization` header.
+
+<details>
+<summary><b>Request / Response</b></summary>
+
+**Headers:**
+```
+Authorization: Bearer <access_token>
+```
+
+**Response `200`:**
+```json
+{
+  "message": "Logged out successfully"
+}
+```
+
+> After logout, the user's refresh token is invalidated. Any subsequent calls to `POST /api/v1/auth/refresh` with the old token will return `401`.
 
 </details>
 
@@ -737,6 +811,57 @@ State-machine validated. Invalid transitions return `400 Bad Request`.
 {
   "statusCode": 400,
   "message": "Invalid status transition from DELIVERED to PENDING",
+  "error": "Bad Request"
+}
+```
+
+</details>
+
+#### `POST /api/v1/orders/:id/pod` 🔒 — Upload Proof of Delivery
+
+Upload package photo and recipient signature (file upload or base64 canvas) to complete delivery. Automatically transitions order status to `DELIVERED`.
+
+<details>
+<summary><b>Request / Response</b></summary>
+
+**Content-Type:** `multipart/form-data`
+
+| Field | Type | Required | Description |
+|:--|:--|:--|:--|
+| `photo` | File | **Yes** | Photo of the delivered package |
+| `signature` | File | No* | Recipient signature image |
+| `signatureBase64` | string | No* | Base64-encoded canvas signature (alternative to file) |
+| `latitude` | number | **Yes** | Delivery GPS latitude |
+| `longitude` | number | **Yes** | Delivery GPS longitude |
+| `notes` | string | No | Delivery notes |
+
+> \* Either `signature` file or `signatureBase64` must be provided.
+
+**Response `200`:**
+```json
+{
+  "_id": "667f1a2b3c4d5e6f7a8b9c0d",
+  "trackingNumber": "BSTA-A1B2C3D4-EG",
+  "status": "DELIVERED",
+  "proofOfDelivery": {
+    "photoUrl": "https://s3.amazonaws.com/fleetpulse-pod/packages/photo.png",
+    "signatureUrl": "https://s3.amazonaws.com/fleetpulse-pod/signatures/sig.png",
+    "location": {
+      "type": "Point",
+      "coordinates": [31.2357, 30.0444]
+    },
+    "timestamp": "2026-08-04T12:30:00.000Z",
+    "courierId": "courier_042",
+    "notes": "Left at doorstep"
+  }
+}
+```
+
+**Error `400`:**
+```json
+{
+  "statusCode": 400,
+  "message": "Photo of delivered package is required",
   "error": "Bad Request"
 }
 ```
@@ -941,7 +1066,9 @@ npm run test:debug
 
 | Service | Tests | What's Covered |
 |:--|:--|:--|
-| **OrdersService** | 10 | Order creation, queue enqueue, pagination with filters, findOne by ID/tracking, status transitions, invalid transition rejection |
+| **AuthService** | 10 | Registration, login, refresh token rotation, expired/invalid token rejection, logout token revocation |
+| **AuthController** | 6 | Register, login, refresh, and logout endpoint routing |
+| **OrdersService** | 17 | Order creation, queue enqueue, pagination with filters, findOne by ID/tracking, status transitions, invalid transition rejection, POD upload with file/base64 signatures |
 | **LedgerService** | 5 | COD payment processing, pessimistic locking, double-entry ledger entries, atomic rollback on failure, account validation |
 | **SearchService** | 7 | Index initialization, document indexing/updating, fuzzy search across fields, error resilience, ES client configuration |
 
@@ -1083,14 +1210,15 @@ fleetpulse/
 │   └── fleetpulse-hpa.yaml              # Horizontal Pod Autoscaler (3-10 pods)
 ├── src/
 │   ├── auth/                             # 🔐 JWT Authentication & RBAC
-│   │   ├── auth.controller.ts            #    POST /register, /login
-│   │   ├── auth.service.ts               #    bcrypt hashing, JWT signing
+│   │   ├── auth.controller.ts            #    POST /register, /login, /refresh, /logout
+│   │   ├── auth.service.ts               #    Token generation, rotation, revocation
 │   │   ├── jwt.strategy.ts               #    Passport JWT strategy
 │   │   ├── roles.guard.ts                #    Role-based access guard
 │   │   ├── user-role.enum.ts             #    ADMIN | MERCHANT | COURIER
-│   │   ├── user.schema.ts                #    MongoDB User document
+│   │   ├── user.schema.ts                #    MongoDB User document + refreshTokenHash
 │   │   ├── register.dto.ts               #    Registration validation
-│   │   └── login.dto.ts                  #    Login validation
+│   │   ├── login.dto.ts                  #    Login validation
+│   │   └── refresh-token.dto.ts          #    Refresh token validation
 │   ├── dispatch/                         # 🚚 Courier Assignment & Tracking
 │   │   ├── dispatch/
 │   │   │   ├── dispatch.controller.ts    #    POST /dispatch/assign
@@ -1108,15 +1236,20 @@ fleetpulse/
 │   │   │   └── ledger-entry.entity.ts    #    Immutable transaction records
 │   │   ├── ledger.controller.ts          #    RabbitMQ event consumer
 │   │   └── ledger.service.ts             #    COD settlement with pessimistic locks
+│   ├── common/                           # 🔧 Shared Utilities
+│   │   └── storage/
+│   │       ├── storage.module.ts         #    S3 storage module
+│   │       └── storage.service.ts        #    S3 file upload + base64 upload
 │   ├── orders/                           # 📦 Order CRUD & Lifecycle
 │   │   ├── dto/
 │   │   │   ├── create-order.dto.ts       #    Nested DTO with class-validator
 │   │   │   ├── order-query.dto.ts        #    Pagination + filter params
-│   │   │   └── update-order-status.dto.ts #   Status enum + courierId
+│   │   │   ├── update-order-status.dto.ts #   Status enum + courierId
+│   │   │   └── upload-pod.dto.ts         #    POD upload validation
 │   │   ├── schemas/
-│   │   │   └── order.schema.ts           #    MongoDB schema (GeoJSON + nested)
-│   │   ├── orders.controller.ts          #    REST endpoints
-│   │   └── orders.service.ts             #    BullMQ enqueue + state machine
+│   │   │   └── order.schema.ts           #    MongoDB schema (GeoJSON + POD nested)
+│   │   ├── orders.controller.ts          #    REST endpoints + POD upload
+│   │   └── orders.service.ts             #    BullMQ enqueue + state machine + POD
 │   ├── search/                           # 🔍 Elasticsearch Waybill Search
 │   │   ├── search.controller.ts          #    GET /search?q=
 │   │   └── search.service.ts             #    Index init + fuzzy multi_match
@@ -1165,8 +1298,15 @@ All variables are validated at startup with **Joi**. The application will refuse
 | `REDIS_PORT` | No | `6379` | Redis port |
 | `RABBITMQ_URI` | **Yes** | — | RabbitMQ AMQP connection URI |
 | `ELASTICSEARCH_NODE` | **Yes** | — | Elasticsearch node URL |
-| `JWT_SECRET` | **Yes** | — | Secret key for JWT signing |
-| `JWT_EXPIRATION` | No | `1d` | JWT token expiration duration |
+| `JWT_SECRET` | **Yes** | — | Secret key for JWT access token signing |
+| `JWT_EXPIRATION` | No | `15m` | Access token expiration duration |
+| `JWT_REFRESH_SECRET` | No | — | Separate secret for refresh tokens (falls back to `JWT_SECRET`) |
+| `JWT_REFRESH_EXPIRATION` | No | `7d` | Refresh token expiration duration |
+| `S3_ENDPOINT` | No | — | S3-compatible endpoint URL |
+| `S3_REGION` | No | `us-east-1` | S3 region |
+| `S3_BUCKET` | No | `fleetpulse-pod` | S3 bucket name for POD uploads |
+| `S3_ACCESS_KEY_ID` | No | — | S3 access key |
+| `S3_SECRET_ACCESS_KEY` | No | — | S3 secret key |
 
 ---
 
