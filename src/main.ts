@@ -1,10 +1,6 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-argument */
-/* eslint-disable @typescript-eslint/no-unsafe-call */
-/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
-import { ValidationPipe } from '@nestjs/common';
+import { ValidationPipe, VersioningType } from '@nestjs/common';
 import { MicroserviceOptions, Transport } from '@nestjs/microservices';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { Logger } from 'nestjs-pino';
@@ -19,6 +15,16 @@ async function bootstrap() {
 
   // Enable Graceful Shutdown Hooks (SIGTERM/SIGINT)
   app.enableShutdownHooks();
+
+  // Global Prefix & URI Versioning Configuration
+  app.setGlobalPrefix('api', {
+    exclude: ['health', '/'],
+  });
+
+  app.enableVersioning({
+    type: VersioningType.URI,
+    defaultVersion: '1',
+  });
 
   // Security Headers Middleware
   app.use(helmet());

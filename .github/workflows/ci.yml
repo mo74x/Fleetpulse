@@ -36,3 +36,6 @@ jobs:
 
       - name: Run unit tests
         run: npm test -- --passWithNoTests --coverage
+
+      - name: Run integration tests with Testcontainers
+        run: npm run test:integration

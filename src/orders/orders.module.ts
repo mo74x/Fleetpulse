@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { BullModule } from '@nestjs/bullmq';
 import { OrdersController } from './orders.controller';
+import { OrdersV2Controller } from './orders-v2.controller';
 import { OrdersService } from './orders.service';
 import { OrdersProcessor } from './orders.processor';
 import { ClientsModule, Transport } from '@nestjs/microservices';
@@ -41,7 +42,7 @@ import { StorageModule } from '../common/storage/storage.module';
     WebhooksModule,
     StorageModule,
   ],
-  controllers: [OrdersController],
+  controllers: [OrdersController, OrdersV2Controller],
   providers: [OrdersService, OrdersProcessor, OrdersSyncService],
   exports: [OrdersService],
 })

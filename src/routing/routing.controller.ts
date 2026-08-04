@@ -20,7 +20,10 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 import { OrdersService } from '../orders/orders.service';
 
-@Controller('api/v1/routing')
+@Controller({
+  path: 'routing',
+  version: '1',
+})
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class RoutingController {
   constructor(

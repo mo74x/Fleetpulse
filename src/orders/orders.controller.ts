@@ -27,7 +27,10 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 
-@Controller('api/v1/orders')
+@Controller({
+  path: 'orders',
+  version: '1',
+})
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class OrdersController {
   constructor(private readonly ordersService: OrdersService) {}

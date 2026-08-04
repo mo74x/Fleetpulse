@@ -22,7 +22,10 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 
-@Controller('api/v1/webhooks')
+@Controller({
+  path: 'webhooks',
+  version: '1',
+})
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class WebhooksController {
   constructor(private readonly webhooksService: WebhooksService) {}

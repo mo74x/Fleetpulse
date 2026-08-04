@@ -15,7 +15,10 @@ import { LoginDto } from './login.dto';
 import { RefreshTokenDto } from './refresh-token.dto';
 import { JwtAuthGuard } from './jwt-auth.guard';
 
-@Controller('api/v1/auth')
+@Controller({
+  path: 'auth',
+  version: '1',
+})
 export class AuthController {
   constructor(private readonly authService: AuthService) {}
 
