@@ -1,22 +1,68 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 import {
   ConflictException,
   Injectable,
   UnauthorizedException,
+  Optional,
 } from '@nestjs/common';
 import { InjectModel } from '@nestjs/mongoose';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { User, UserDocument } from './user.schema';
 import { RegisterDto } from './register.dto';
 import { LoginDto } from './login.dto';
+import { RefreshTokenDto } from './refresh-token.dto';
 
 @Injectable()
 export class AuthService {
   constructor(
     @InjectModel(User.name) private userModel: Model<UserDocument>,
     private jwtService: JwtService,
+    @Optional() private configService?: ConfigService,
   ) {}
+
+  private async generateAndSaveTokens(
+    userId: string,
+    email: string,
+    role: string,
+    userDoc?: UserDocument,
+  ) {
+    const accessExpiration =
+      this.configService?.get<string>('JWT_EXPIRATION') || '15m';
+    const refreshExpiration =
+      this.configService?.get<string>('JWT_REFRESH_EXPIRATION') || '7d';
+    const refreshSecret =
+      this.configService?.get<string>('JWT_REFRESH_SECRET') ||
+      this.configService?.get<string>('JWT_SECRET');
+
+    const accessPayload = { sub: userId, email, role };
+    const refreshPayload = { sub: userId, type: 'refresh' };
+
+    const token = this.jwtService.sign(accessPayload, {
+      expiresIn: accessExpiration as any,
+    });
+
+    const refreshToken = this.jwtService.sign(
+      refreshPayload,
+      refreshSecret
+        ? { secret: refreshSecret, expiresIn: refreshExpiration as any }
+        : { expiresIn: refreshExpiration as any },
+    );
+
+    const refreshTokenHash = await bcrypt.hash(refreshToken, 10);
+
+    if (userDoc) {
+      userDoc.refreshTokenHash = refreshTokenHash;
+      await userDoc.save();
+    } else {
+      await this.userModel.findByIdAndUpdate(userId, { refreshTokenHash });
+    }
+
+    return { token, refreshToken };
+  }
 
   async register(registerDto: RegisterDto) {
     const email = registerDto.email.toLowerCase().trim();
@@ -36,17 +82,16 @@ export class AuthService {
     });
 
     const savedUser = await user.save();
-
-    const payload = {
-      sub: savedUser._id.toString(),
-      email: savedUser.email,
-      role: savedUser.role,
-    };
-
-    const token = this.jwtService.sign(payload);
+    const { token, refreshToken } = await this.generateAndSaveTokens(
+      savedUser._id.toString(),
+      savedUser.email,
+      savedUser.role,
+      savedUser,
+    );
 
     return {
       token,
+      refreshToken,
       user: {
         id: savedUser._id,
         email: savedUser.email,
@@ -74,16 +119,16 @@ export class AuthService {
       throw new UnauthorizedException('Invalid email or password');
     }
 
-    const payload = {
-      sub: user._id.toString(),
-      email: user.email,
-      role: user.role,
-    };
-
-    const token = this.jwtService.sign(payload);
+    const { token, refreshToken } = await this.generateAndSaveTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+      user,
+    );
 
     return {
       token,
+      refreshToken,
       user: {
         id: user._id,
         email: user.email,
@@ -93,5 +138,55 @@ export class AuthService {
         updatedAt: user.updatedAt,
       },
     };
+  }
+
+  async refreshTokens(refreshTokenDto: RefreshTokenDto) {
+    const refreshSecret =
+      this.configService?.get<string>('JWT_REFRESH_SECRET') ||
+      this.configService?.get<string>('JWT_SECRET');
+
+    let payload: any;
+    try {
+      payload = await this.jwtService.verifyAsync(
+        refreshTokenDto.refreshToken,
+        refreshSecret ? { secret: refreshSecret } : undefined,
+      );
+    } catch {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    if (!payload || payload.type !== 'refresh' || !payload.sub) {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const user = await this.userModel.findById(payload.sub);
+    if (!user || !user.refreshTokenHash) {
+      throw new UnauthorizedException('Invalid or revoked refresh token');
+    }
+
+    const isMatching = await bcrypt.compare(
+      refreshTokenDto.refreshToken,
+      user.refreshTokenHash,
+    );
+    if (!isMatching) {
+      throw new UnauthorizedException('Invalid or revoked refresh token');
+    }
+
+    const { token, refreshToken } = await this.generateAndSaveTokens(
+      user._id.toString(),
+      user.email,
+      user.role,
+      user,
+    );
+
+    return {
+      token,
+      refreshToken,
+    };
+  }
+
+  async logout(userId: string) {
+    await this.userModel.findByIdAndUpdate(userId, { refreshTokenHash: null });
+    return { message: 'Logged out successfully' };
   }
 }

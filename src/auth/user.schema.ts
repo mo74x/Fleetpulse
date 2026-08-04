@@ -29,6 +29,9 @@ export class User {
   })
   role: UserRole;
 
+  @Prop({ required: false, type: String, default: null })
+  refreshTokenHash?: string | null;
+
   createdAt?: Date;
   updatedAt?: Date;
 }
