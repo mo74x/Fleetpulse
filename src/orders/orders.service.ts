@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
@@ -28,6 +27,8 @@ import { NotificationsService } from '../notifications/notifications.service';
 import { CourierService } from '../dispatch/courier.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
 import { StorageService } from '../common/storage/storage.service';
+import { plainToInstance } from 'class-transformer';
+import { OrderResponseDto } from './dto/order-response.dto';
 import { UploadPodDto } from './dto/upload-pod.dto';
 
 @Injectable()
@@ -115,10 +116,16 @@ export class OrdersService {
 
     const skip = (page - 1) * limit;
 
-    const [data, total] = await Promise.all([
+    const [rawDocs, total] = await Promise.all([
       this.orderModel.find(filter).skip(skip).limit(limit).exec(),
       this.orderModel.countDocuments(filter).exec(),
     ]);
+
+    const data = rawDocs.map((doc) =>
+      plainToInstance(OrderResponseDto, doc.toObject ? doc.toObject() : doc, {
+        excludeExtraneousValues: true,
+      }),
+    );
 
     return {
       data,

@@ -21,9 +21,11 @@ import {
   ApiResponse,
   ApiTags,
 } from '@nestjs/swagger';
+import { plainToInstance } from 'class-transformer';
 import { WebhooksService } from './webhooks.service';
 import { CreateWebhookDto } from './dto/create-webhook.dto';
 import { UpdateWebhookDto } from './dto/update-webhook.dto';
+import { WebhookSubscriptionResponseDto } from './dto/webhook-subscription-response.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -55,11 +57,23 @@ export class WebhooksController {
     description:
       'Registers a new webhook subscription URL to receive event notifications.',
   })
-  @ApiResponse({ status: 201, description: 'Webhook subscription created.' })
+  @ApiResponse({
+    status: 201,
+    description: 'Webhook subscription created.',
+    type: WebhookSubscriptionResponseDto,
+  })
   @ApiResponse({ status: 400, description: 'Invalid URL or event list.' })
   async create(@Request() req: any, @Body() createDto: CreateWebhookDto) {
     const merchantId = this.extractMerchantId(req);
-    return this.webhooksService.createSubscription(merchantId, createDto);
+    const sub = await this.webhooksService.createSubscription(
+      merchantId,
+      createDto,
+    );
+    return plainToInstance(
+      WebhookSubscriptionResponseDto,
+      sub.toObject ? sub.toObject() : sub,
+      { excludeExtraneousValues: true },
+    );
   }
 
   @Get()
@@ -69,10 +83,21 @@ export class WebhooksController {
     description:
       'Retrieves all active webhook subscriptions registered by the merchant.',
   })
-  @ApiResponse({ status: 200, description: 'List of subscriptions returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'List of subscriptions returned.',
+    type: [WebhookSubscriptionResponseDto],
+  })
   async findAll(@Request() req: any) {
     const merchantId = this.extractMerchantId(req);
-    return this.webhooksService.findAllByMerchant(merchantId);
+    const subs = await this.webhooksService.findAllByMerchant(merchantId);
+    return subs.map((sub) =>
+      plainToInstance(
+        WebhookSubscriptionResponseDto,
+        sub.toObject ? sub.toObject() : sub,
+        { excludeExtraneousValues: true },
+      ),
+    );
   }
 
   @Get('deliveries')
@@ -103,11 +128,20 @@ export class WebhooksController {
     summary: 'Get webhook subscription details',
     description: 'Retrieves a single webhook subscription configuration by ID.',
   })
-  @ApiResponse({ status: 200, description: 'Webhook details returned.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook details returned.',
+    type: WebhookSubscriptionResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Webhook subscription not found.' })
   async findOne(@Request() req: any, @Param('id') id: string) {
     const merchantId = this.extractMerchantId(req);
-    return this.webhooksService.findOne(id, merchantId);
+    const sub = await this.webhooksService.findOne(id, merchantId);
+    return plainToInstance(
+      WebhookSubscriptionResponseDto,
+      sub.toObject ? sub.toObject() : sub,
+      { excludeExtraneousValues: true },
+    );
   }
 
   @Patch(':id')
@@ -117,7 +151,11 @@ export class WebhooksController {
     description:
       'Updates target URL, subscribed events, secret, or active state.',
   })
-  @ApiResponse({ status: 200, description: 'Webhook updated successfully.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Webhook updated successfully.',
+    type: WebhookSubscriptionResponseDto,
+  })
   @ApiResponse({ status: 404, description: 'Webhook subscription not found.' })
   async update(
     @Request() req: any,
@@ -125,7 +163,16 @@ export class WebhooksController {
     @Body() updateDto: UpdateWebhookDto,
   ) {
     const merchantId = this.extractMerchantId(req);
-    return this.webhooksService.updateSubscription(id, merchantId, updateDto);
+    const sub = await this.webhooksService.updateSubscription(
+      id,
+      merchantId,
+      updateDto,
+    );
+    return plainToInstance(
+      WebhookSubscriptionResponseDto,
+      sub.toObject ? sub.toObject() : sub,
+      { excludeExtraneousValues: true },
+    );
   }
 
   @Delete(':id')

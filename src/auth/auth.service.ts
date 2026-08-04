@@ -11,10 +11,12 @@ import { JwtService } from '@nestjs/jwt';
 import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
+import { plainToInstance } from 'class-transformer';
 import { User, UserDocument } from './user.schema';
 import { RegisterDto } from './register.dto';
 import { LoginDto } from './login.dto';
 import { RefreshTokenDto } from './refresh-token.dto';
+import { UserResponseDto } from './dto/user-response.dto';
 
 @Injectable()
 export class AuthService {
@@ -92,14 +94,11 @@ export class AuthService {
     return {
       token,
       refreshToken,
-      user: {
-        id: savedUser._id,
-        email: savedUser.email,
-        name: savedUser.name,
-        role: savedUser.role,
-        createdAt: savedUser.createdAt,
-        updatedAt: savedUser.updatedAt,
-      },
+      user: plainToInstance(
+        UserResponseDto,
+        savedUser.toObject ? savedUser.toObject() : savedUser,
+        { excludeExtraneousValues: true },
+      ),
     };
   }
 
@@ -129,14 +128,11 @@ export class AuthService {
     return {
       token,
       refreshToken,
-      user: {
-        id: user._id,
-        email: user.email,
-        name: user.name,
-        role: user.role,
-        createdAt: user.createdAt,
-        updatedAt: user.updatedAt,
-      },
+      user: plainToInstance(
+        UserResponseDto,
+        user.toObject ? user.toObject() : user,
+        { excludeExtraneousValues: true },
+      ),
     };
   }
 
