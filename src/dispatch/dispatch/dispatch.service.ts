@@ -5,6 +5,7 @@ import { Injectable, Logger, ConflictException } from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 import { OrdersService } from '../../orders/orders.service';
 import { OrderStatus } from '../../orders/dto/update-order-status.dto';
+import { CourierService } from '../courier.service';
 
 @Injectable()
 export class DispatchService {
@@ -13,6 +14,7 @@ export class DispatchService {
   constructor(
     private readonly redisService: RedisService,
     private readonly ordersService: OrdersService,
+    private readonly courierService?: CourierService,
   ) {}
 
   /**
@@ -27,7 +29,7 @@ export class DispatchService {
   }
 
   /**
-   * Auto-assign the nearest courier or assign a specific courier with Redlock concurrency safety
+   * Auto-assign the nearest available courier or assign a specific courier with Redlock concurrency safety
    */
   async assignOrder(
     orderId: string,
@@ -38,7 +40,19 @@ export class DispatchService {
   ) {
     let targetCourierId = courierId;
 
-    if (!targetCourierId) {
+    if (targetCourierId) {
+      if (this.courierService) {
+        const eligible =
+          await this.courierService.isCourierEligibleForAssignment(
+            targetCourierId,
+          );
+        if (!eligible) {
+          throw new ConflictException(
+            `Courier ${targetCourierId} is currently unavailable, off-shift, or at maximum order capacity.`,
+          );
+        }
+      }
+    } else {
       if (latitude === undefined || longitude === undefined) {
         throw new ConflictException(
           'Either courierId or latitude and longitude must be provided for assignment.',
@@ -54,7 +68,27 @@ export class DispatchService {
           `No nearby couriers found within ${radiusKm} km radius.`,
         );
       }
-      targetCourierId = nearbyCouriers[0];
+
+      // Filter nearby couriers for availability and shift schedule
+      if (this.courierService) {
+        for (const candidateId of nearbyCouriers) {
+          const eligible =
+            await this.courierService.isCourierEligibleForAssignment(
+              candidateId,
+            );
+          if (eligible) {
+            targetCourierId = candidateId;
+            break;
+          }
+        }
+        if (!targetCourierId) {
+          throw new ConflictException(
+            `All nearby couriers within ${radiusKm} km are currently unavailable, off-shift, or at max capacity.`,
+          );
+        }
+      } else {
+        targetCourierId = nearbyCouriers[0];
+      }
     }
 
     return this.assignOrderSafely(orderId, targetCourierId);
@@ -75,11 +109,16 @@ export class DispatchService {
       );
 
       try {
-        // Perform the business logic: update MongoDB order state
+        // Update MongoDB order state
         const updatedOrder = await this.ordersService.updateStatus(orderId, {
           status: OrderStatus.ASSIGNED,
           courierId,
         });
+
+        // Increment active orders for courier & auto-toggle availability if max reached
+        if (this.courierService) {
+          await this.courierService.incrementActiveOrders(courierId);
+        }
 
         this.logger.log(
           `Order ${orderId} successfully assigned to ${courierId}`,
@@ -100,7 +139,6 @@ export class DispatchService {
       if (error instanceof ConflictException) {
         throw error;
       }
-      // Redlock throws an ExecutionError if the lock is already held
       this.logger.warn(
         `Race condition or assignment failure for Order ${orderId}: ${error.message}`,
       );

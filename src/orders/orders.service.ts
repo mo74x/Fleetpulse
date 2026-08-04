@@ -21,6 +21,7 @@ import { randomUUID } from 'crypto';
 
 import { CorrelationContext } from '../common/context/correlation-context';
 import { NotificationsService } from '../notifications/notifications.service';
+import { CourierService } from '../dispatch/courier.service';
 
 @Injectable()
 export class OrdersService {
@@ -29,6 +30,7 @@ export class OrdersService {
     @InjectModel(Order.name) private orderModel: Model<OrderDocument>,
     @Inject('RABBITMQ_SERVICE') private readonly clientProxy: ClientProxy,
     private readonly notificationsService?: NotificationsService,
+    private readonly courierService?: CourierService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -139,6 +141,15 @@ export class OrdersService {
         status: savedOrder.status,
         correlationId,
       });
+    }
+
+    if (
+      (newStatus === OrderStatus.DELIVERED ||
+        newStatus === OrderStatus.FAILED) &&
+      savedOrder.courierId &&
+      this.courierService
+    ) {
+      await this.courierService.decrementActiveOrders(savedOrder.courierId);
     }
 
     if (this.notificationsService) {
