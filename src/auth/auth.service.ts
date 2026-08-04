@@ -12,6 +12,7 @@ import { ConfigService } from '@nestjs/config';
 import { Model } from 'mongoose';
 import * as bcrypt from 'bcrypt';
 import { plainToInstance } from 'class-transformer';
+import { ErrorCode } from '../common/enums/error-code.enum';
 import { User, UserDocument } from './user.schema';
 import { RegisterDto } from './register.dto';
 import { LoginDto } from './login.dto';
@@ -71,7 +72,10 @@ export class AuthService {
     const existingUser = await this.userModel.findOne({ email });
 
     if (existingUser) {
-      throw new ConflictException('User with this email already exists');
+      throw new ConflictException({
+        errorCode: ErrorCode.ERR_USER_EXISTS,
+        message: 'User with this email already exists',
+      });
     }
 
     const passwordHash = await bcrypt.hash(registerDto.password, 10);
@@ -107,7 +111,10 @@ export class AuthService {
     const user = await this.userModel.findOne({ email });
 
     if (!user) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_CREDENTIALS,
+        message: 'Invalid email or password',
+      });
     }
 
     const isPasswordValid = await bcrypt.compare(
@@ -115,7 +122,10 @@ export class AuthService {
       user.passwordHash,
     );
     if (!isPasswordValid) {
-      throw new UnauthorizedException('Invalid email or password');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_CREDENTIALS,
+        message: 'Invalid email or password',
+      });
     }
 
     const { token, refreshToken } = await this.generateAndSaveTokens(
@@ -148,16 +158,25 @@ export class AuthService {
         refreshSecret ? { secret: refreshSecret } : undefined,
       );
     } catch {
-      throw new UnauthorizedException('Invalid or expired refresh token');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_REFRESH_TOKEN,
+        message: 'Invalid or expired refresh token',
+      });
     }
 
     if (!payload || payload.type !== 'refresh' || !payload.sub) {
-      throw new UnauthorizedException('Invalid refresh token');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_REFRESH_TOKEN,
+        message: 'Invalid refresh token payload',
+      });
     }
 
     const user = await this.userModel.findById(payload.sub);
     if (!user || !user.refreshTokenHash) {
-      throw new UnauthorizedException('Invalid or revoked refresh token');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_REFRESH_TOKEN,
+        message: 'Invalid or revoked refresh token',
+      });
     }
 
     const isMatching = await bcrypt.compare(
@@ -165,7 +184,10 @@ export class AuthService {
       user.refreshTokenHash,
     );
     if (!isMatching) {
-      throw new UnauthorizedException('Invalid or revoked refresh token');
+      throw new UnauthorizedException({
+        errorCode: ErrorCode.ERR_INVALID_REFRESH_TOKEN,
+        message: 'Invalid or revoked refresh token',
+      });
     }
 
     const { token, refreshToken } = await this.generateAndSaveTokens(

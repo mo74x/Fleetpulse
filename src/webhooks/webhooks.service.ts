@@ -20,7 +20,7 @@ import {
 import { CreateWebhookDto } from './dto/create-webhook.dto';
 import { UpdateWebhookDto } from './dto/update-webhook.dto';
 import { WebhookSignatureUtil } from './utils/webhook-signature.util';
-
+import { ErrorCode } from '../common/enums/error-code.enum';
 @Injectable()
 export class WebhooksService {
   private readonly logger = new Logger(WebhooksService.name);
@@ -67,18 +67,25 @@ export class WebhooksService {
     merchantId?: string,
   ): Promise<WebhookSubscriptionDocument> {
     if (!isValidObjectId(id)) {
-      throw new NotFoundException(`Webhook subscription '${id}' not found`);
+      throw new NotFoundException({
+        errorCode: ErrorCode.ERR_WEBHOOK_NOT_FOUND,
+        message: `Webhook subscription '${id}' not found`,
+      });
     }
 
     const subscription = await this.subscriptionModel.findById(id).exec();
     if (!subscription) {
-      throw new NotFoundException(`Webhook subscription '${id}' not found`);
+      throw new NotFoundException({
+        errorCode: ErrorCode.ERR_WEBHOOK_NOT_FOUND,
+        message: `Webhook subscription '${id}' not found`,
+      });
     }
 
     if (merchantId && subscription.merchantId !== merchantId) {
-      throw new ForbiddenException(
-        'You do not have access to this webhook subscription',
-      );
+      throw new ForbiddenException({
+        errorCode: ErrorCode.ERR_WEBHOOK_ACCESS_DENIED,
+        message: 'You do not have access to this webhook subscription',
+      });
     }
 
     return subscription;

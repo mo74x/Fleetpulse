@@ -21,6 +21,7 @@ import {
   OrderStatus,
 } from './dto/update-order-status.dto';
 import { randomUUID } from 'crypto';
+import { ErrorCode } from '../common/enums/error-code.enum';
 
 import { CorrelationContext } from '../common/context/correlation-context';
 import { NotificationsService } from '../notifications/notifications.service';
@@ -152,9 +153,10 @@ export class OrdersService {
     }
 
     if (!order) {
-      throw new NotFoundException(
-        `Order with ID or tracking number '${idOrTrackingNumber}' not found`,
-      );
+      throw new NotFoundException({
+        errorCode: ErrorCode.ERR_ORDER_NOT_FOUND,
+        message: `Order with ID or tracking number '${idOrTrackingNumber}' not found`,
+      });
     }
 
     return order;
@@ -309,11 +311,17 @@ export class OrdersService {
     const order = await this.findOne(idOrTrackingNumber);
 
     if (order.status === OrderStatus.DELIVERED) {
-      throw new BadRequestException('Order is already marked as DELIVERED');
+      throw new BadRequestException({
+        errorCode: ErrorCode.ERR_POD_ALREADY_DELIVERED,
+        message: 'Order is already marked as DELIVERED',
+      });
     }
 
     if (!this.storageService) {
-      throw new BadRequestException('Storage service is not available');
+      throw new BadRequestException({
+        errorCode: ErrorCode.ERR_STORAGE_UNAVAILABLE,
+        message: 'Storage service is not available',
+      });
     }
 
     let signatureUrl = '';
@@ -334,9 +342,11 @@ export class OrdersService {
         },
       );
     } else {
-      throw new BadRequestException(
-        'Recipient signature (file upload or canvas base64) is required',
-      );
+      throw new BadRequestException({
+        errorCode: ErrorCode.ERR_POD_SIGNATURE_REQUIRED,
+        message:
+          'Recipient signature (file upload or canvas base64) is required',
+      });
     }
 
     let photoUrl = '';
@@ -347,7 +357,10 @@ export class OrdersService {
         contentType: photoFile.mimetype,
       });
     } else {
-      throw new BadRequestException('Photo of delivered package is required');
+      throw new BadRequestException({
+        errorCode: ErrorCode.ERR_POD_PHOTO_REQUIRED,
+        message: 'Photo of delivered package is required',
+      });
     }
 
     const courierId = actorCourierId || order.courierId;
@@ -395,9 +408,10 @@ export class OrdersService {
 
     const allowed = allowedTransitions[current] || [];
     if (!allowed.includes(next)) {
-      throw new BadRequestException(
-        `Invalid status transition from ${current} to ${next}`,
-      );
+      throw new BadRequestException({
+        errorCode: ErrorCode.ERR_INVALID_TRANSITION,
+        message: `Invalid status transition from ${current} to ${next}`,
+      });
     }
   }
 }

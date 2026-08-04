@@ -26,6 +26,7 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 import { OrdersService } from '../orders/orders.service';
+import { ErrorCode } from '../common/enums/error-code.enum';
 
 @ApiTags('routing')
 @ApiBearerAuth()
@@ -192,7 +193,10 @@ export class RoutingController {
 
     const order = await this.ordersService.findOne(trackingNumber);
     if (!order) {
-      throw new NotFoundException(`Order '${trackingNumber}' not found`);
+      throw new NotFoundException({
+        errorCode: ErrorCode.ERR_ORDER_NOT_FOUND,
+        message: `Order '${trackingNumber}' not found`,
+      });
     }
 
     // Default estimate if location is missing
