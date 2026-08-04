@@ -71,6 +71,30 @@ export class OrderEvent {
 
 export const OrderEventSchema = SchemaFactory.createForClass(OrderEvent);
 
+@Schema({ _id: false })
+export class ProofOfDelivery {
+  @Prop({ required: true })
+  signatureUrl: string;
+
+  @Prop({ required: true })
+  photoUrl: string;
+
+  @Prop({ type: Location, required: true })
+  location: Location;
+
+  @Prop({ required: true, default: () => new Date() })
+  timestamp: Date;
+
+  @Prop({ default: null })
+  courierId?: string;
+
+  @Prop({ default: null })
+  notes?: string;
+}
+
+export const ProofOfDeliverySchema =
+  SchemaFactory.createForClass(ProofOfDelivery);
+
 @Schema({ timestamps: true })
 export class Order {
   @Prop({ required: true, unique: true, index: true })
@@ -97,6 +121,9 @@ export class Order {
 
   @Prop({ type: [OrderEventSchema], default: [] })
   events: OrderEvent[];
+
+  @Prop({ type: ProofOfDeliverySchema, default: undefined })
+  proofOfDelivery?: ProofOfDelivery;
 }
 
 export const OrderSchema = SchemaFactory.createForClass(Order);

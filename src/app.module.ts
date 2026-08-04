@@ -53,6 +53,13 @@ import { randomUUID } from 'crypto';
         TWILIO_AUTH_TOKEN: Joi.string().optional(),
         TWILIO_PHONE_NUMBER: Joi.string().optional(),
         FCM_SERVER_KEY: Joi.string().optional(),
+        S3_ENDPOINT: Joi.string().optional(),
+        S3_REGION: Joi.string().default('us-east-1'),
+        S3_BUCKET: Joi.string().default('fleetpulse-pod'),
+        S3_ACCESS_KEY_ID: Joi.string().optional(),
+        S3_SECRET_ACCESS_KEY: Joi.string().optional(),
+        S3_FORCE_PATH_STYLE: Joi.string().optional(),
+        PUBLIC_STORAGE_URL: Joi.string().optional(),
       }),
     }),
     LoggerModule.forRootAsync({

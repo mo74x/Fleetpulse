@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
@@ -26,6 +27,8 @@ import { CorrelationContext } from '../common/context/correlation-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierService } from '../dispatch/courier.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
+import { StorageService } from '../common/storage/storage.service';
+import { UploadPodDto } from './dto/upload-pod.dto';
 
 @Injectable()
 export class OrdersService {
@@ -36,6 +39,7 @@ export class OrdersService {
     @Optional() private readonly notificationsService?: NotificationsService,
     @Optional() private readonly courierService?: CourierService,
     @Optional() private readonly webhooksService?: WebhooksService,
+    @Optional() private readonly storageService?: StorageService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -284,6 +288,88 @@ export class OrdersService {
     }
 
     return savedOrder;
+  }
+
+  async uploadProofOfDelivery(
+    idOrTrackingNumber: string,
+    files: {
+      signature?: Express.Multer.File[];
+      photo?: Express.Multer.File[];
+    },
+    uploadPodDto: UploadPodDto,
+    actorCourierId?: string,
+  ): Promise<OrderDocument> {
+    const order = await this.findOne(idOrTrackingNumber);
+
+    if (order.status === OrderStatus.DELIVERED) {
+      throw new BadRequestException('Order is already marked as DELIVERED');
+    }
+
+    if (!this.storageService) {
+      throw new BadRequestException('Storage service is not available');
+    }
+
+    let signatureUrl = '';
+    const signatureFile = files?.signature?.[0];
+    if (signatureFile) {
+      signatureUrl = await this.storageService.uploadFile(
+        signatureFile.buffer,
+        {
+          folder: 'signatures',
+          contentType: signatureFile.mimetype,
+        },
+      );
+    } else if (uploadPodDto.signatureBase64) {
+      signatureUrl = await this.storageService.uploadBase64(
+        uploadPodDto.signatureBase64,
+        {
+          folder: 'signatures',
+        },
+      );
+    } else {
+      throw new BadRequestException(
+        'Recipient signature (file upload or canvas base64) is required',
+      );
+    }
+
+    let photoUrl = '';
+    const photoFile = files?.photo?.[0];
+    if (photoFile) {
+      photoUrl = await this.storageService.uploadFile(photoFile.buffer, {
+        folder: 'packages',
+        contentType: photoFile.mimetype,
+      });
+    } else {
+      throw new BadRequestException('Photo of delivered package is required');
+    }
+
+    const courierId = actorCourierId || order.courierId;
+    const podData = {
+      signatureUrl,
+      photoUrl,
+      location: {
+        type: 'Point',
+        coordinates: [uploadPodDto.longitude, uploadPodDto.latitude],
+      },
+      timestamp: new Date(),
+      courierId,
+      notes: uploadPodDto.notes,
+    };
+
+    order.proofOfDelivery = podData;
+
+    return this.updateStatus(
+      order._id ? order._id.toString() : order.trackingNumber,
+      {
+        status: OrderStatus.DELIVERED,
+        courierId,
+        actor: courierId || 'courier',
+        location: [uploadPodDto.longitude, uploadPodDto.latitude],
+        details: {
+          pod: podData,
+        },
+      },
+    );
   }
 
   private validateStatusTransition(

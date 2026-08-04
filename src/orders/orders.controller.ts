@@ -1,3 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import {
   Controller,
   Post,
@@ -9,11 +12,16 @@ import {
   HttpCode,
   HttpStatus,
   UseGuards,
+  UseInterceptors,
+  UploadedFiles,
+  Req,
 } from '@nestjs/common';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { OrdersService } from './orders.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { UpdateOrderStatusDto } from './dto/update-order-status.dto';
+import { UploadPodDto } from './dto/upload-pod.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
@@ -56,5 +64,32 @@ export class OrdersController {
     @Body() updateStatusDto: UpdateOrderStatusDto,
   ) {
     return this.ordersService.updateStatus(id, updateStatusDto);
+  }
+
+  @Post(':id/pod')
+  @Roles(UserRole.ADMIN, UserRole.COURIER)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'signature', maxCount: 1 },
+      { name: 'photo', maxCount: 1 },
+    ]),
+  )
+  async uploadPod(
+    @Param('id') id: string,
+    @UploadedFiles()
+    files: {
+      signature?: Express.Multer.File[];
+      photo?: Express.Multer.File[];
+    },
+    @Body() uploadPodDto: UploadPodDto,
+    @Req() req: any,
+  ) {
+    const courierId = req.user?.userId;
+    return this.ordersService.uploadProofOfDelivery(
+      id,
+      files,
+      uploadPodDto,
+      courierId,
+    );
   }
 }
