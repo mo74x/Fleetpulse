@@ -1,4 +1,10 @@
 import { Controller, Get, UseGuards, Query } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { OrdersService } from './orders.service';
 import { OrderQueryDto } from './dto/order-query.dto';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
@@ -6,6 +12,8 @@ import { RolesGuard } from '../auth/roles.guard';
 import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 
+@ApiTags('orders')
+@ApiBearerAuth()
 @Controller({
   path: 'orders',
   version: '2',
@@ -16,6 +24,16 @@ export class OrdersV2Controller {
 
   @Get()
   @Roles(UserRole.ADMIN, UserRole.MERCHANT)
+  @ApiOperation({
+    summary: 'List orders v2',
+    description:
+      'Retrieves orders formatted according to API version 2 response specification.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Versioned order response returned.',
+  })
+  @ApiResponse({ status: 401, description: 'Unauthorized access.' })
   async findAllV2(@Query() queryDto: OrderQueryDto) {
     const v1Results = await this.ordersService.findAll(queryDto);
     return {

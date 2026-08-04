@@ -1,8 +1,9 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
-/* eslint-disable @typescript-eslint/no-unsafe-return */
+
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Controller, Get } from '@nestjs/common';
+import { ApiOperation, ApiResponse, ApiTags } from '@nestjs/swagger';
 import {
   HealthCheck,
   HealthCheckService,
@@ -49,6 +50,7 @@ export class ElasticsearchHealthIndicator extends HealthIndicator {
   }
 }
 
+@ApiTags('health')
 @Controller('health')
 export class HealthController {
   constructor(
@@ -61,6 +63,19 @@ export class HealthController {
 
   @Get()
   @HealthCheck()
+  @ApiOperation({
+    summary: 'Check cluster infrastructure health',
+    description:
+      'Pings PostgreSQL, MongoDB, Redis, and Elasticsearch service connections.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'All infrastructure services healthy.',
+  })
+  @ApiResponse({
+    status: 503,
+    description: 'One or more infrastructure services degraded or down.',
+  })
   check() {
     return this.health.check([
       () => this.db.pingCheck('postgres'),

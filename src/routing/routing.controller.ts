@@ -10,6 +10,13 @@ import {
   UseGuards,
   NotFoundException,
 } from '@nestjs/common';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { RoutingEngineService } from './routing-engine.service';
 import { EtaService } from './eta.service';
 import { CalculateEtaDto } from './dto/calculate-eta.dto';
@@ -20,6 +27,8 @@ import { Roles } from '../auth/roles.decorator';
 import { UserRole } from '../auth/user-role.enum';
 import { OrdersService } from '../orders/orders.service';
 
+@ApiTags('routing')
+@ApiBearerAuth()
 @Controller({
   path: 'routing',
   version: '1',
@@ -34,6 +43,19 @@ export class RoutingController {
 
   @Post('eta')
   @Roles(UserRole.ADMIN, UserRole.MERCHANT, UserRole.COURIER)
+  @ApiOperation({
+    summary: 'Calculate ETA and distance between coordinates',
+    description:
+      'Computes road distance, travel duration, and estimated arrival time.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Calculated ETA and distance returned.',
+  })
+  @ApiResponse({
+    status: 400,
+    description: 'Invalid origin or destination payload.',
+  })
   async calculateEta(@Body() dto: CalculateEtaDto) {
     const result = await this.routingEngine.calculateDistanceAndDuration(
       dto.origin,
@@ -60,12 +82,43 @@ export class RoutingController {
 
   @Post('optimize')
   @Roles(UserRole.ADMIN, UserRole.COURIER, UserRole.MERCHANT)
+  @ApiOperation({
+    summary: 'Optimize multi-stop delivery route',
+    description:
+      'Solves the Traveling Salesperson Problem (TSP) to order waypoints for minimal duration.',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Optimized route itinerary returned.',
+  })
+  @ApiResponse({ status: 400, description: 'Invalid waypoints configuration.' })
   async optimizeRoute(@Body() dto: OptimizeRouteDto) {
     return this.routingEngine.optimizeMultiStopRoute(dto.origin, dto.waypoints);
   }
 
   @Get('courier/:courierId/route')
   @Roles(UserRole.ADMIN, UserRole.COURIER)
+  @ApiOperation({
+    summary: 'Get optimized route for courier assigned orders',
+    description:
+      'Retrieves active orders assigned to a courier and returns an optimized itinerary.',
+  })
+  @ApiQuery({
+    name: 'lat',
+    required: false,
+    type: Number,
+    description: 'Current courier latitude',
+  })
+  @ApiQuery({
+    name: 'lng',
+    required: false,
+    type: Number,
+    description: 'Current courier longitude',
+  })
+  @ApiResponse({
+    status: 200,
+    description: 'Courier itinerary and sequence returned.',
+  })
   async getCourierOptimizedRoute(
     @Param('courierId') courierId: string,
     @Query('lat') lat?: number,
@@ -126,6 +179,13 @@ export class RoutingController {
 
   @Get('orders/:trackingNumber/eta')
   @Roles(UserRole.ADMIN, UserRole.MERCHANT, UserRole.COURIER)
+  @ApiOperation({
+    summary: 'Get live ETA for order',
+    description:
+      'Fetches cached or real-time computed ETA for a specific tracking number.',
+  })
+  @ApiResponse({ status: 200, description: 'Live order ETA details returned.' })
+  @ApiResponse({ status: 404, description: 'Order tracking number not found.' })
   async getOrderEta(@Param('trackingNumber') trackingNumber: string) {
     const cachedEta = await this.etaService.getCachedEta(trackingNumber);
     if (cachedEta) return cachedEta;
