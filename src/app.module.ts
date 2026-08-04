@@ -15,6 +15,7 @@ import { HealthModule } from './health/health.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { WebhooksModule } from './webhooks/webhooks.module';
+import { RoutingModule } from './routing/routing.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -125,6 +126,7 @@ import { randomUUID } from 'crypto';
     NotificationsModule,
     AnalyticsModule,
     WebhooksModule,
+    RoutingModule,
   ],
   providers: [
     {
