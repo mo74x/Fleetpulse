@@ -1,7 +1,7 @@
 import { WebhookSignatureUtil } from './webhook-signature.util';
 
 describe('WebhookSignatureUtil', () => {
-  const secret = 'whsec_testsecret12345678901234567890';
+  const secret = WebhookSignatureUtil.generateSecret();
   const payload = { event: 'order.created', trackingNumber: 'BSTA-123456-EG' };
 
   it('should generate a valid secret starting with whsec_', () => {
@@ -69,7 +69,7 @@ describe('WebhookSignatureUtil', () => {
     const isValid = WebhookSignatureUtil.verifySignature(
       headerValue,
       payload,
-      'whsec_wrongsecret',
+      WebhookSignatureUtil.generateSecret(),
       300000,
     );
 

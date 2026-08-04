@@ -8,6 +8,7 @@ import { NotFoundException, ForbiddenException } from '@nestjs/common';
 import { WebhooksService } from './webhooks.service';
 import { WebhookSubscription } from './schemas/webhook-subscription.schema';
 import { WebhookDelivery } from './schemas/webhook-delivery.schema';
+import { WebhookSignatureUtil } from './utils/webhook-signature.util';
 
 describe('WebhooksService', () => {
   let service: WebhooksService;
@@ -22,7 +23,7 @@ describe('WebhooksService', () => {
     _id: mockSubId,
     merchantId: mockMerchantId,
     url: 'https://example.com/webhook',
-    secret: 'whsec_test123',
+    secret: WebhookSignatureUtil.generateSecret(),
     events: ['order.created', 'order.delivered'],
     isActive: true,
     description: 'Test Webhook',
