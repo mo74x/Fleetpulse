@@ -10,6 +10,7 @@ import { Order, OrderSchema } from './schemas/order.schema';
 import { SearchModule } from 'src/search/search.module';
 import { OrdersSyncService } from './orders.sync.service';
 import { NotificationsModule } from '../notifications/notifications.module';
+import { WebhooksModule } from '../webhooks/webhooks.module';
 
 @Module({
   imports: [
@@ -36,6 +37,7 @@ import { NotificationsModule } from '../notifications/notifications.module';
     MongooseModule.forFeature([{ name: Order.name, schema: OrderSchema }]),
     SearchModule,
     NotificationsModule,
+    WebhooksModule,
   ],
   controllers: [OrdersController],
   providers: [OrdersService, OrdersProcessor, OrdersSyncService],

@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
 import {
@@ -24,6 +25,7 @@ import { randomUUID } from 'crypto';
 import { CorrelationContext } from '../common/context/correlation-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierService } from '../dispatch/courier.service';
+import { WebhooksService } from '../webhooks/webhooks.service';
 
 @Injectable()
 export class OrdersService {
@@ -33,6 +35,7 @@ export class OrdersService {
     @Inject('RABBITMQ_SERVICE') private readonly clientProxy: ClientProxy,
     @Optional() private readonly notificationsService?: NotificationsService,
     @Optional() private readonly courierService?: CourierService,
+    @Optional() private readonly webhooksService?: WebhooksService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -71,6 +74,20 @@ export class OrdersService {
         delay: 2000,
       },
     });
+
+    if (this.webhooksService && createOrderDto.merchantId) {
+      await this.webhooksService.dispatchOrderEvent(
+        'order.created',
+        createOrderDto.merchantId,
+        {
+          trackingNumber,
+          status: OrderStatus.PENDING,
+          merchantId: createOrderDto.merchantId,
+          recipient: createOrderDto.recipient,
+          createdAt: payload.createdAt,
+        },
+      );
+    }
 
     return {
       message: 'Order accepted for processing',
@@ -241,6 +258,28 @@ export class OrdersService {
           recipient: savedOrder.recipient,
         },
         currentStatus,
+      );
+    }
+
+    if (this.webhooksService && savedOrder.merchantId) {
+      const eventName =
+        newStatus === OrderStatus.DELIVERED
+          ? 'order.delivered'
+          : newStatus === OrderStatus.FAILED
+            ? 'order.failed'
+            : 'order.updated';
+
+      await this.webhooksService.dispatchOrderEvent(
+        eventName,
+        savedOrder.merchantId,
+        {
+          trackingNumber: savedOrder.trackingNumber,
+          status: savedOrder.status,
+          previousStatus: currentStatus,
+          merchantId: savedOrder.merchantId,
+          courierId: savedOrder.courierId,
+          updatedAt: new Date(),
+        },
       );
     }
 
