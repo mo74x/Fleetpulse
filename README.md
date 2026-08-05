@@ -4,8 +4,12 @@
 
 <h1 align="center">FleetPulse</h1>
 <p align="center">
-  <b>A production-grade, event-driven logistics engine built with NestJS</b>
+  <b>Production-Grade Last-Mile Delivery Engine — Event-Driven, Distributed, Observable</b>
 </p>
+<p align="center">
+  <i>A backend platform that handles the entire lifecycle of a delivery order — from merchant ingestion to courier dispatch, real-time GPS tracking, proof of delivery, financial settlement, and operational observability.</i>
+</p>
+
 <p align="center">
   <img src="https://img.shields.io/badge/NestJS-11-E0234E?style=for-the-badge&logo=nestjs&logoColor=white" alt="NestJS" />
   <img src="https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white" alt="TypeScript" />
@@ -17,42 +21,59 @@
   <img src="https://img.shields.io/badge/RabbitMQ-3-FF6600?style=for-the-badge&logo=rabbitmq&logoColor=white" alt="RabbitMQ" />
   <img src="https://img.shields.io/badge/Docker-Ready-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker" />
   <img src="https://img.shields.io/badge/Kubernetes-Ready-326CE5?style=for-the-badge&logo=kubernetes&logoColor=white" alt="Kubernetes" />
+  <img src="https://img.shields.io/badge/OpenTelemetry-Traced-4B0082?style=for-the-badge&logo=opentelemetry&logoColor=white" alt="OpenTelemetry" />
+  <img src="https://img.shields.io/badge/Prometheus-Metrics-E6522C?style=for-the-badge&logo=prometheus&logoColor=white" alt="Prometheus" />
   <img src="https://img.shields.io/badge/License-MIT-yellow?style=for-the-badge" alt="License" />
 </p>
 
 <p align="center">
-  <a href="#-overview">Overview</a> •
+  <a href="#-the-business-problem">Problem</a> •
+  <a href="#-what-fleetpulse-does">Solution</a> •
   <a href="#-architecture">Architecture</a> •
+  <a href="#-engineering-highlights">Engineering</a> •
   <a href="#-tech-stack">Tech Stack</a> •
-  <a href="#-data-models">Data Models</a> •
-  <a href="#-getting-started">Getting Started</a> •
-  <a href="#-api-reference">API Reference</a> •
-  <a href="#-order-lifecycle">Order Lifecycle</a> •
+  <a href="#-getting-started">Setup</a> •
+  <a href="#-api-reference">API</a> •
+  <a href="#-observability">Observability</a> •
   <a href="#-testing">Testing</a> •
-  <a href="#-cicd--deployment">CI/CD</a>
+  <a href="#-cicd--deployment">Deploy</a>
 </p>
 
 ---
 
-## 📋 Overview
+## 🎯 The Business Problem
 
-**FleetPulse** is a real-time, last-mile delivery management platform designed for high-throughput logistics operations. It handles the full lifecycle of a delivery order — from ingestion and courier dispatch, through real-time GPS tracking, to financial settlement via a double-entry ledger — all within a polyglot-persistent, event-driven architecture.
+In Egypt and the MENA region, last-mile delivery platforms process **thousands of cash-on-delivery orders daily**. The operational challenges are immense:
 
-### ✨ Key Features
+- **Merchants** need to ingest bulk orders and track them in real-time
+- **Dispatchers** need to assign the nearest available courier instantly — without two dispatchers assigning the same courier
+- **Couriers** need to upload proof of delivery (photos + signatures) from the field
+- **Finance teams** need accurate, auditable COD settlement — every pound collected must be traced through a double-entry ledger
+- **Operations teams** need to know when queues are backing up, which endpoints are slow, and trace a single request across HTTP → Queue → Worker → Database → Message Bus
 
-| Feature | Description |
+**FleetPulse** is the backend engine that solves all of this.
+
+---
+
+## 🚀 What FleetPulse Does
+
+| Capability | How It Works |
 |:--|:--|
-| 🚚 **Async Order Ingestion** | Orders are accepted instantly and processed via BullMQ with exponential backoff retries (3 attempts) |
-| 📍 **Geo-Spatial Dispatch** | Nearest courier assignment using Redis GeoSets with configurable radius search |
-| 🔒 **Distributed Locking** | Redlock-based concurrency control prevents double-dispatch race conditions |
-| 📡 **Real-Time Tracking** | Socket.IO WebSocket gateway for live driver GPS telemetry ingestion |
-| 📸 **Proof of Delivery (POD)** | Package photo & signature (file/base64) uploads stored in S3 bucket |
-| 🔍 **Fuzzy Search** | Elasticsearch-powered waybill search across tracking numbers, names, and cities |
-| 💰 **Double-Entry Ledger** | PostgreSQL-backed financial settlement with pessimistic locking and atomic transactions |
-| 🔐 **JWT + Refresh Tokens** | Short-lived access tokens (15m), rotatable refresh tokens (7d), and logout revocation |
-| 🏥 **Health Monitoring** | Terminus-based health checks for all infrastructure dependencies |
-| ⚡ **Rate Limiting** | Global throttling at 100 requests/minute to protect against abuse |
-| 🐳 **Container-Ready** | Multi-stage Docker builds and Kubernetes manifests with HPA autoscaling |
+| 📦 **Order Ingestion** | Merchants submit orders via REST API → instantly accepted (202) → processed asynchronously through BullMQ with 3x exponential backoff retries |
+| 📍 **Smart Dispatch** | Geo-spatial courier assignment using Redis GeoSets — find the nearest available driver within a configurable radius. Protected by Redlock distributed locks to prevent double-dispatch |
+| 📡 **Live GPS Tracking** | Socket.IO WebSocket gateway ingests real-time driver telemetry, stored in Redis GeoSets for continuous proximity queries |
+| 📸 **Proof of Delivery** | Package photo + recipient signature (file upload or base64 canvas) uploaded to S3 → order auto-transitions to `DELIVERED` |
+| 💰 **COD Settlement** | When an order is delivered, a RabbitMQ event triggers a PostgreSQL double-entry ledger transaction with pessimistic locking — courier, merchant, and platform accounts are updated atomically |
+| 🔍 **Waybill Search** | Elasticsearch fuzzy search across tracking numbers (3x boosted), recipient names, and cities with typo tolerance |
+| 📊 **Analytics Engine** | Aggregated operational analytics — delivery performance, revenue breakdown, courier utilization, SLA adherence — powered by MongoDB aggregation pipelines |
+| 🔔 **Multi-Channel Notifications** | Order status changes trigger Email, SMS, Push, and In-App notifications via BullMQ workers with per-channel provider abstraction |
+| 🌐 **Merchant Webhooks** | Configurable webhook subscriptions per merchant — signed payloads (HMAC-SHA256), automatic retries with exponential backoff, delivery logging |
+| 🗺️ **Route Optimization** | Haversine-based multi-stop route optimization with ETA calculations for courier route planning |
+| 📈 **Prometheus Metrics** | Business metrics (`orders_created_total`, `dispatch_duration_seconds`, `queue_depth`) + HTTP metrics (`request duration`, `error rates by endpoint`) exposed at `/metrics` |
+| 🔭 **Distributed Tracing** | OpenTelemetry SDK with Jaeger/Zipkin exporters — trace a single request across HTTP → BullMQ Queue → Worker → Database → RabbitMQ with W3C context propagation |
+| 💀 **Dead Letter Queue** | Failed jobs that exhaust all retries are captured in a DLQ with full failure metadata — inspect, replay, or purge via REST API |
+| 🔐 **Authentication** | JWT access tokens (15m) + rotatable refresh tokens (7d) + logout revocation + role-based access control (Admin, Merchant, Courier) |
+| 🏥 **Health Checks** | Terminus-based health probes for all 5 infrastructure dependencies — Kubernetes readiness-compatible |
 
 ---
 
@@ -63,48 +84,69 @@
 ```mermaid
 graph TB
     subgraph Clients
-        A[🖥️ Client / Swagger UI]
-        B[📱 Driver Mobile App]
+        A["🖥️ Merchant Dashboard"]
+        B["📱 Driver Mobile App"]
     end
 
     subgraph Gateway ["NestJS API Gateway"]
-        C[🔐 Auth Module<br/>JWT + RBAC]
-        D[📦 Orders Module<br/>CRUD + Lifecycle]
-        E[🚚 Dispatch Module<br/>Geo + Assignment]
-        F[🔍 Search Module<br/>Elasticsearch]
-        G[💰 Ledger Module<br/>Double-Entry]
-        H[🏥 Health Module<br/>Terminus]
-        I[⚡ Throttler<br/>Rate Limiting]
+        C["🔐 Auth Module<br/>JWT + RBAC"]
+        D["📦 Orders Module<br/>Ingestion + Lifecycle"]
+        E["🚚 Dispatch Module<br/>Geo + Locking"]
+        F["🔍 Search Module<br/>Elasticsearch"]
+        G["💰 Ledger Module<br/>Double-Entry"]
+        H["🏥 Health Module<br/>Terminus"]
+        I["📈 Metrics Module<br/>Prometheus"]
+        J["🔭 Tracing Module<br/>OpenTelemetry"]
+        K["📊 Analytics Module<br/>Aggregation"]
+        L["🔔 Notifications Module<br/>Multi-Channel"]
+        M["🌐 Webhooks Module<br/>Signed Delivery"]
+        N["🗺️ Routing Module<br/>ETA + Optimization"]
+        O["💀 DLQ Module<br/>Failed Job Recovery"]
     end
 
     subgraph Data ["Data & Messaging Layer"]
-        J[(MongoDB<br/>Orders)]
-        K[(PostgreSQL<br/>Ledger)]
-        L[(Redis<br/>Geo + Locks + BullMQ)]
-        M[Elasticsearch<br/>Waybill Index]
-        N[RabbitMQ<br/>Event Bus]
+        P[("MongoDB<br/>Orders + Users")]
+        Q[("PostgreSQL<br/>Ledger + Accounts")]
+        R[("Redis<br/>Geo + Locks + BullMQ")]
+        S["Elasticsearch<br/>Waybill Index"]
+        T["RabbitMQ<br/>Event Bus"]
+    end
+
+    subgraph Observability
+        U["Prometheus<br/>/metrics"]
+        V["Jaeger / Zipkin<br/>Trace Collector"]
     end
 
     A -- HTTP/REST --> C
     A -- HTTP/REST --> D
     A -- HTTP/REST --> F
+    A -- HTTP/REST --> K
     B -- WebSocket --> E
+    B -- HTTP/REST --> D
 
-    D --> J
-    D --> L
-    G --> K
-    E --> L
-    F --> M
-    D -- order.delivered --> N
-    N -- consume --> G
-    C --> J
+    D --> P
+    D --> R
+    G --> Q
+    E --> R
+    F --> S
+    K --> P
+    L --> R
+    M --> R
+    O --> R
+    D -- order.delivered --> T
+    T -- consume --> G
+    T -- consume --> L
+
+    I --> U
+    J --> V
 
     style Gateway fill:#1a1a2e,stroke:#e94560,stroke-width:2px,color:#fff
     style Data fill:#0f3460,stroke:#16213e,stroke-width:2px,color:#fff
     style Clients fill:#16213e,stroke:#0f3460,stroke-width:2px,color:#fff
+    style Observability fill:#2d1b69,stroke:#7c3aed,stroke-width:2px,color:#fff
 ```
 
-### Request Flow — Order Creation
+### Request Flow — Order Creation to COD Settlement
 
 ```mermaid
 sequenceDiagram
@@ -115,25 +157,32 @@ sequenceDiagram
     participant DB as MongoDB
     participant ES as Elasticsearch
     participant MQ as RabbitMQ
+    participant Ledger as PostgreSQL
 
     Client->>API: POST /api/v1/orders
     API->>API: Validate DTO (class-validator)
     API->>API: Generate Tracking Number (BSTA-XXXXXXXX-EG)
+    API->>API: Inject OTel trace context into job payload
     API->>Queue: Enqueue job (3 retries, exponential backoff)
     API-->>Client: 202 { trackingNumber, message }
 
-    Queue->>Worker: Process job
+    Queue->>Worker: Process job (within traced span)
     Worker->>DB: Insert Order document
     Worker->>ES: Index waybill document
+    Worker->>MQ: Emit order.created event
     Worker-->>Queue: Job complete
 
-    Note over DB,ES: On status → DELIVERED
-    DB->>MQ: Emit order.delivered event
-    MQ->>API: Consume event (Ledger Service)
-    API->>DB: Process COD settlement
+    Note over DB,Ledger: When status → DELIVERED
+    MQ->>API: Consume order.delivered event
+    API->>Ledger: BEGIN TRANSACTION (pessimistic locks)
+    Ledger->>Ledger: Update Courier + Merchant + Platform accounts
+    Ledger->>Ledger: Insert double-entry ledger records
+    Ledger->>Ledger: COMMIT
+
+    Note over Queue: If job fails 3x → Dead Letter Queue
 ```
 
-### Request Flow — Courier Dispatch
+### Courier Dispatch with Geo-Spatial Search
 
 ```mermaid
 sequenceDiagram
@@ -161,7 +210,7 @@ sequenceDiagram
     Note over Lock: If lock fails →<br/>409 Conflict (race condition prevented)
 ```
 
-### COD Financial Settlement
+### COD Financial Settlement (Double-Entry Ledger)
 
 ```mermaid
 sequenceDiagram
@@ -192,21 +241,27 @@ sequenceDiagram
     Note over PG: On failure → ROLLBACK<br/>entire transaction
 ```
 
-### System Components
+---
 
-| Component | Technology | Purpose |
-|:--|:--|:--|
-| **API Gateway** | NestJS + Express | REST API with Swagger/OpenAPI documentation |
-| **Auth** | Passport + JWT + bcrypt | Short-lived access tokens (15m), rotatable refresh tokens (7d), RBAC, and logout revocation |
-| **Orders** | MongoDB + Mongoose | Order ingestion, CRUD, and status lifecycle management |
-| **Dispatch** | Redis GeoSets + Redlock | Geo-spatial courier lookup and concurrency-safe assignment |
-| **Tracking** | Socket.IO (WebSocket) | Real-time driver GPS telemetry ingestion via `/telemetry` namespace |
-| **Search** | Elasticsearch 9 | Fuzzy waybill search (tracking numbers, recipient names, cities) |
-| **Ledger** | PostgreSQL + TypeORM | Double-entry bookkeeping for COD financial settlement |
-| **Queue** | BullMQ (Redis) | Async order processing with 3x exponential backoff retries |
-| **Events** | RabbitMQ (AMQP) | Event-driven inter-service communication (`order.delivered`) |
-| **Health** | @nestjs/terminus | Health checks for Postgres, MongoDB, Redis, Elasticsearch |
-| **Rate Limiting** | @nestjs/throttler | Global rate limiting (100 req/min, 60s TTL) |
+## ⚙️ Engineering Highlights
+
+### Why This Project Demonstrates Production-Level Engineering
+
+| Concern | How FleetPulse Addresses It |
+|:--|:--|
+| **Polyglot Persistence** | MongoDB for flexible order documents, PostgreSQL for ACID-compliant financial ledger, Redis for geo-spatial data + caching + job queues, Elasticsearch for full-text search |
+| **Event-Driven Architecture** | RabbitMQ decouples order lifecycle from financial settlement — producers don't wait for consumers |
+| **Async Job Processing** | BullMQ with exponential backoff retries, configurable attempts, and automatic Dead Letter Queue capture on exhaustion |
+| **Distributed Concurrency** | Redlock algorithm prevents double-dispatch — if two dispatchers try to assign the same courier simultaneously, one gets a 409 Conflict |
+| **Financial Integrity** | PostgreSQL pessimistic locking (`SELECT ... FOR UPDATE`) ensures COD amounts are never double-credited, even under concurrent load |
+| **State Machine Enforcement** | Order status transitions are validated server-side — `DELIVERED → PENDING` is impossible, preventing data corruption |
+| **Distributed Tracing** | OpenTelemetry with W3C context propagation traces a request from HTTP handler → BullMQ job → Worker processing → Database writes → RabbitMQ emission |
+| **Business Metrics** | Prometheus counters/histograms track orders-per-minute, dispatch latency, queue depth, processing duration, and HTTP error rates by endpoint |
+| **Structured Logging** | Pino logger with correlation IDs — every log line from a single request shares the same `X-Request-ID`, even across async boundaries |
+| **Webhook Reliability** | HMAC-SHA256 signed payloads, configurable retry with exponential backoff, delivery audit trail in MongoDB |
+| **Graceful Failure** | Dead Letter Queue captures permanently failed jobs with full metadata (original payload, error stack, queue name, attempt count) for manual inspection and replay |
+| **Container-Native** | Multi-stage Docker builds, Kubernetes Deployments with HPA (3-10 pods, 70% CPU target), readiness probes, secrets management |
+| **API Standards** | Swagger/OpenAPI documentation, URI versioning (`/api/v1/`), class-validator DTOs, consistent error response format |
 
 ---
 
@@ -220,53 +275,65 @@ mindmap
       TypeScript 5
       NestJS 11
     Databases
-      MongoDB 7 — Orders
-      PostgreSQL 16 — Ledger
+      MongoDB 7 — Orders & Users
+      PostgreSQL 16 — Financial Ledger
     Cache & Geo
       Redis 7
-        GeoSets
-        Distributed Locks
-        BullMQ Queues
+        GeoSets — Courier Proximity
+        Distributed Locks — Redlock
+        BullMQ — Job Queues
     Search
-      Elasticsearch 9
+      Elasticsearch 9 — Fuzzy Waybill
     Messaging
-      RabbitMQ — AMQP
+      RabbitMQ — Event Bus (AMQP)
     Real-Time
-      Socket.IO — WebSockets
+      Socket.IO — WebSocket Telemetry
     Auth
-      JWT — Passport
+      JWT — Access & Refresh Tokens
       bcrypt — Password Hashing
-      RBAC — Role Guards
-      Refresh Token Rotation
-      Token Revocation
+      RBAC — Role-Based Guards
     Storage
       AWS S3 — POD File Uploads
+    Observability
+      Prometheus — Business & HTTP Metrics
+      OpenTelemetry — Distributed Tracing
+      Jaeger / Zipkin — Trace Collection
+      Pino — Structured Logging
+    Notifications
+      Email — SMTP / SendGrid
+      SMS — Twilio
+      Push — FCM
+      In-App — Socket.IO
     DevOps
       Docker — Multi-Stage Build
       Kubernetes — HPA Autoscaling
       GitHub Actions — CI/CD
     Docs
-      Swagger/OpenAPI
+      Swagger / OpenAPI
 ```
 
-### Dependency Highlights
+### System Components
 
-| Category | Package | Version | Purpose |
-|:--|:--|:--|:--|
-| **Framework** | `@nestjs/core` | 11.x | Core application framework |
-| **Validation** | `class-validator` + `class-transformer` | 0.15 / 0.5 | DTO validation and transformation |
-| **Database** | `mongoose` | 9.x | MongoDB ODM for order documents |
-| **Database** | `typeorm` + `pg` | 1.x / 8.x | PostgreSQL ORM for ledger entities |
-| **Cache** | `redis` | 6.x | Native Redis client for Geo + Locks |
-| **Locks** | `redlock` | 5.x-beta | Distributed locking algorithm |
-| **Queue** | `bullmq` | 5.x | Redis-backed job queue with retries |
-| **Search** | `@elastic/elasticsearch` | 9.x | Elasticsearch client for waybill search |
-| **Messaging** | `amqplib` + `amqp-connection-manager` | 2.x / 5.x | RabbitMQ AMQP client |
-| **Auth** | `@nestjs/jwt` + `passport-jwt` + `bcrypt` | 11.x / 4.x / 6.x | JWT signing, refresh token rotation, password hashing |
-| **Storage** | `@aws-sdk/client-s3` | 3.x | S3-compatible file uploads for POD photos and signatures |
-| **WebSocket** | `socket.io` + `@nestjs/websockets` | 4.x / 11.x | Real-time bidirectional communication |
-| **Health** | `@nestjs/terminus` | 11.x | Health check endpoints |
-| **Docs** | `@nestjs/swagger` + `swagger-ui-express` | 11.x / 5.x | Auto-generated API documentation |
+| Component | Technology | Purpose |
+|:--|:--|:--|
+| **API Gateway** | NestJS + Express | REST API with Swagger/OpenAPI documentation |
+| **Auth** | Passport + JWT + bcrypt | Short-lived access (15m), rotatable refresh tokens (7d), RBAC, logout revocation |
+| **Orders** | MongoDB + Mongoose | Order ingestion, CRUD, status lifecycle with state machine validation |
+| **Dispatch** | Redis GeoSets + Redlock | Geo-spatial courier lookup and concurrency-safe assignment |
+| **Tracking** | Socket.IO (WebSocket) | Real-time driver GPS telemetry via `/telemetry` namespace |
+| **Search** | Elasticsearch 9 | Fuzzy waybill search (tracking numbers, names, cities) |
+| **Ledger** | PostgreSQL + TypeORM | Double-entry bookkeeping for COD settlement with pessimistic locking |
+| **Notifications** | BullMQ + Providers | Multi-channel (Email, SMS, Push, In-App) with per-channel provider abstraction |
+| **Webhooks** | BullMQ + HMAC-SHA256 | Merchant webhook subscriptions with signed payloads and retry |
+| **Analytics** | MongoDB Aggregation | Delivery performance, revenue, courier stats, SLA metrics |
+| **Routing** | Haversine Algorithm | Multi-stop route optimization and ETA calculation |
+| **Metrics** | Prometheus + prom-client | Business metrics, queue depth, HTTP latency/error rates |
+| **Tracing** | OpenTelemetry SDK | Distributed tracing across HTTP, queues, workers, databases, message bus |
+| **DLQ** | BullMQ | Dead letter capture, inspection, manual replay, and purging |
+| **Queue** | BullMQ (Redis) | Async processing with 3x exponential backoff retries |
+| **Events** | RabbitMQ (AMQP) | Event-driven inter-service communication |
+| **Health** | @nestjs/terminus | Readiness probes for all infrastructure dependencies |
+| **Rate Limiting** | @nestjs/throttler | Global rate limiting (100 req/min) |
 
 ---
 
@@ -302,11 +369,20 @@ erDiagram
         number codAmountValue
         string currency
     }
+    PROOF_OF_DELIVERY {
+        string photoUrl "S3 URL"
+        string signatureUrl "S3 URL"
+        object location "GeoJSON Point"
+        Date timestamp
+        string courierId
+        string notes
+    }
 
     ORDER ||--|| RECIPIENT : contains
     RECIPIENT ||--|| ADDRESS : has
     ADDRESS ||--|| LOCATION : has
     ORDER ||--|| PACKAGE_DETAILS : contains
+    ORDER ||--o| PROOF_OF_DELIVERY : "has (on delivery)"
 ```
 
 <details>
@@ -318,7 +394,7 @@ erDiagram
   "trackingNumber": "BSTA-A1B2C3D4-EG",
   "merchantId": "merchant_001",
   "courierId": "courier_042",
-  "status": "IN_TRANSIT",
+  "status": "DELIVERED",
   "recipient": {
     "name": "Ahmed Hassan",
     "phone": "+201234567890",
@@ -336,8 +412,16 @@ erDiagram
     "codAmountValue": 350.00,
     "currency": "EGP"
   },
+  "proofOfDelivery": {
+    "photoUrl": "https://s3.amazonaws.com/fleetpulse-pod/packages/photo.png",
+    "signatureUrl": "https://s3.amazonaws.com/fleetpulse-pod/signatures/sig.png",
+    "location": { "type": "Point", "coordinates": [31.2357, 30.0444] },
+    "timestamp": "2026-08-04T12:30:00.000Z",
+    "courierId": "courier_042",
+    "notes": "Left at doorstep"
+  },
   "createdAt": "2026-08-03T08:30:00.000Z",
-  "updatedAt": "2026-08-03T09:15:00.000Z"
+  "updatedAt": "2026-08-04T12:30:00.000Z"
 }
 ```
 
@@ -387,21 +471,105 @@ When an order with `codAmountValue: 350.00 EGP` is delivered with a `platformFee
 
 </details>
 
-### MongoDB — User Document
+---
+
+## 🔄 Order Lifecycle
+
+### State Machine
 
 ```mermaid
-erDiagram
-    USER {
-        ObjectId _id PK
-        string email UK "lowercase, trimmed"
-        string passwordHash "bcrypt, 10 rounds"
-        string name
-        enum role "ADMIN | MERCHANT | COURIER"
-        string refreshTokenHash "bcrypt, nullable"
-        Date createdAt
-        Date updatedAt
-    }
+stateDiagram-v2
+    [*] --> PENDING : Order Created
+
+    PENDING --> ASSIGNED : Courier dispatched
+    PENDING --> FAILED : Processing error
+
+    ASSIGNED --> IN_TRANSIT : Courier picks up package
+    ASSIGNED --> FAILED : Courier unavailable
+
+    IN_TRANSIT --> DELIVERED : POD uploaded ✅
+    IN_TRANSIT --> FAILED : Delivery failed
+
+    DELIVERED --> [*]
+    FAILED --> [*]
+
+    note right of DELIVERED
+        Triggers:
+        → RabbitMQ event (order.delivered)
+        → COD Ledger Settlement
+        → Merchant Webhook notification
+        → Multi-channel notification
+    end note
+
+    note right of FAILED
+        After 3 retries:
+        → Captured in Dead Letter Queue
+        → Available for manual replay
+    end note
 ```
+
+### Transition Rules
+
+| Current State | Allowed Transitions | Denied Transitions |
+|:--|:--|:--|
+| `PENDING` | `ASSIGNED`, `FAILED` | `IN_TRANSIT`, `DELIVERED` |
+| `ASSIGNED` | `IN_TRANSIT`, `FAILED` | `PENDING`, `DELIVERED` |
+| `IN_TRANSIT` | `DELIVERED`, `FAILED` | `PENDING`, `ASSIGNED` |
+| `DELIVERED` | *(terminal)* | All |
+| `FAILED` | *(terminal)* | All |
+
+> Invalid transitions return `400 Bad Request` with a descriptive error message.
+
+---
+
+## 📈 Observability
+
+### Prometheus Metrics (`GET /metrics`)
+
+| Metric | Type | Labels | Description |
+|:--|:--|:--|:--|
+| `orders_created_total` | Counter | — | Total orders created (use `rate()` for orders/minute) |
+| `dispatch_duration_seconds` | Histogram | — | Time to assign courier to order |
+| `queue_depth` | Gauge | `queue`, `status` | Current job count per BullMQ queue |
+| `queue_job_duration_seconds` | Histogram | `queue`, `status` | Processing time per queue worker |
+| `http_requests_total` | Counter | `method`, `route`, `status_code` | HTTP request count by endpoint |
+| `http_errors_total` | Counter | `method`, `route`, `status_code` | HTTP error count (4xx/5xx) |
+| `http_request_duration_seconds` | Histogram | `method`, `route`, `status_code` | HTTP request latency |
+
+### Distributed Tracing (OpenTelemetry)
+
+Traces are propagated using **W3C `traceparent`** context across:
+
+```
+HTTP Request → BullMQ Job Payload → Worker Span → Database Operations → RabbitMQ Event Emission
+```
+
+| Configuration | Env Variable | Default |
+|:--|:--|:--|
+| Exporter type | `OTEL_EXPORTER_TYPE` | `jaeger` |
+| Jaeger endpoint | `OTEL_EXPORTER_JAEGER_ENDPOINT` | `http://localhost:14268/api/traces` |
+| Zipkin endpoint | `OTEL_EXPORTER_ZIPKIN_ENDPOINT` | `http://localhost:9411/api/v2/spans` |
+| OTLP endpoint | `OTEL_EXPORTER_OTLP_ENDPOINT` | `http://localhost:4318/v1/traces` |
+| Service name | `OTEL_SERVICE_NAME` | `fleetpulse-service` |
+
+### Dead Letter Queue (`/api/v1/dlq`)
+
+When a BullMQ job exhausts all 3 retries, it's automatically captured in the Dead Letter Queue with:
+
+- Original queue name and job ID
+- Full original payload
+- Failure reason and stack trace
+- Timestamp and attempt count
+
+**Management endpoints:**
+
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `GET` | `/api/v1/dlq` | List failed jobs (paginated, filterable by queue) |
+| `GET` | `/api/v1/dlq/:id` | Get detailed failure info for a specific job |
+| `POST` | `/api/v1/dlq/:id/retry` | Re-queue job back to its original queue |
+| `DELETE` | `/api/v1/dlq/:id` | Remove a single dead letter job |
+| `DELETE` | `/api/v1/dlq` | Purge all dead letter jobs |
 
 ---
 
@@ -424,11 +592,11 @@ cd Fleetpulse
 
 ### 2. Start infrastructure with Docker Compose
 
-The project includes a `docker-compose.yml` that spins up all 5 infrastructure services:
-
 ```bash
 docker compose up -d
 ```
+
+This spins up **MongoDB**, **PostgreSQL**, **Redis**, **RabbitMQ**, and **Elasticsearch**.
 
 <details>
 <summary>🐳 <b>docker-compose.yml contents</b></summary>
@@ -533,6 +701,11 @@ S3_REGION=us-east-1
 S3_BUCKET=fleetpulse-pod
 S3_ACCESS_KEY_ID=your-access-key
 S3_SECRET_ACCESS_KEY=your-secret-key
+
+# OpenTelemetry (optional)
+OTEL_EXPORTER_TYPE=jaeger
+OTEL_EXPORTER_JAEGER_ENDPOINT=http://localhost:14268/api/traces
+OTEL_SERVICE_NAME=fleetpulse-service
 ```
 
 > **Note**: All environment variables are validated at startup using Joi. The app will fail fast with a descriptive error if any required variable is missing.
@@ -551,6 +724,7 @@ npm run start:dev
 | 🌐 **HTTP API** | `http://localhost:3000` | REST API base URL |
 | 📘 **Swagger UI** | `http://localhost:3000/api/docs` | Interactive API documentation |
 | 🏥 **Health Check** | `http://localhost:3000/health` | Infrastructure health status |
+| 📈 **Prometheus Metrics** | `http://localhost:3000/metrics` | Prometheus scrape endpoint |
 | 🐰 **RabbitMQ Dashboard** | `http://localhost:15672` | Message broker management (guest/guest) |
 
 ---
@@ -561,390 +735,72 @@ npm run start:dev
 
 All protected routes require a `Bearer` token in the `Authorization` header. Access tokens expire after **15 minutes**; use the refresh endpoint to obtain new tokens without re-authenticating.
 
-#### `POST /api/v1/auth/register`
-
-Register a new user account. Returns a short-lived access token and a long-lived refresh token.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Request Body:**
-```json
-{
-  "email": "ahmed@merchant.com",
-  "password": "SecurePass123!",
-  "name": "Ahmed Hassan",
-  "role": "MERCHANT"
-}
-```
-
-**Response `201`:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "667f1a2b3c4d5e6f7a8b9c0d",
-    "email": "ahmed@merchant.com",
-    "name": "Ahmed Hassan",
-    "role": "MERCHANT",
-    "createdAt": "2026-08-03T08:30:00.000Z",
-    "updatedAt": "2026-08-03T08:30:00.000Z"
-  }
-}
-```
-
-**Error `409`:**
-```json
-{
-  "statusCode": 409,
-  "message": "User with this email already exists",
-  "error": "Conflict"
-}
-```
-
-</details>
-
-#### `POST /api/v1/auth/login`
-
-Authenticate and receive access + refresh tokens.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Request Body:**
-```json
-{
-  "email": "ahmed@merchant.com",
-  "password": "SecurePass123!"
-}
-```
-
-**Response `200`:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs...",
-  "user": {
-    "id": "667f1a2b3c4d5e6f7a8b9c0d",
-    "email": "ahmed@merchant.com",
-    "name": "Ahmed Hassan",
-    "role": "MERCHANT",
-    "createdAt": "2026-08-03T08:30:00.000Z",
-    "updatedAt": "2026-08-03T08:30:00.000Z"
-  }
-}
-```
-
-**Error `401`:**
-```json
-{
-  "statusCode": 401,
-  "message": "Invalid email or password",
-  "error": "Unauthorized"
-}
-```
-
-</details>
-
-#### `POST /api/v1/auth/refresh`
-
-Rotate tokens using a valid refresh token. Issues a new access token and a new refresh token, and invalidates the previous refresh token.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Request Body:**
-```json
-{
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs..."
-}
-```
-
-**Response `200`:**
-```json
-{
-  "token": "eyJhbGciOiJIUzI1NiIs...(new)",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIs...(new)"
-}
-```
-
-**Error `401`:**
-```json
-{
-  "statusCode": 401,
-  "message": "Invalid or revoked refresh token",
-  "error": "Unauthorized"
-}
-```
-
-</details>
-
-#### `POST /api/v1/auth/logout` 🔒
-
-Revoke the current refresh token. Requires a valid access token in the `Authorization` header.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Headers:**
-```
-Authorization: Bearer <access_token>
-```
-
-**Response `200`:**
-```json
-{
-  "message": "Logged out successfully"
-}
-```
-
-> After logout, the user's refresh token is invalidated. Any subsequent calls to `POST /api/v1/auth/refresh` with the old token will return `401`.
-
-</details>
-
----
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `POST` | `/api/v1/auth/register` | Register a new user (returns access + refresh tokens) |
+| `POST` | `/api/v1/auth/login` | Authenticate and receive tokens |
+| `POST` | `/api/v1/auth/refresh` | Rotate tokens using a valid refresh token |
+| `POST` | `/api/v1/auth/logout` 🔒 | Revoke the current refresh token |
 
 ### 📦 Orders
 
-#### `POST /api/v1/orders` — Create Order
-
-Accepts an order and enqueues it for async processing via BullMQ.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Request Body:**
-```json
-{
-  "merchantId": "merchant_001",
-  "recipient": {
-    "name": "Ahmed Hassan",
-    "phone": "+201234567890",
-    "address": {
-      "city": "Cairo",
-      "district": "Nasr City",
-      "location": {
-        "type": "Point",
-        "coordinates": [31.3456, 30.0444]
-      }
-    }
-  },
-  "packageDetails": {
-    "weightKg": 2.5,
-    "codAmountValue": 350.00,
-    "currency": "EGP"
-  }
-}
-```
-
-**Response `202`:**
-```json
-{
-  "message": "Order accepted for processing",
-  "trackingNumber": "BSTA-A1B2C3D4-EG"
-}
-```
-
-</details>
-
-#### `GET /api/v1/orders` — List Orders
-
-Paginated list with optional filters.
-
-| Query Param | Type | Default | Description |
-|:--|:--|:--|:--|
-| `page` | number | `1` | Page number |
-| `limit` | number | `10` | Items per page |
-| `status` | string | — | Filter by status |
-| `merchantId` | string | — | Filter by merchant |
-| `courierId` | string | — | Filter by courier |
-
-<details>
-<summary><b>Response Example</b></summary>
-
-```json
-{
-  "data": [
-    {
-      "_id": "667f1a2b3c4d5e6f7a8b9c0d",
-      "trackingNumber": "BSTA-A1B2C3D4-EG",
-      "merchantId": "merchant_001",
-      "status": "PENDING",
-      "recipient": { "..." : "..." },
-      "packageDetails": { "..." : "..." },
-      "createdAt": "2026-08-03T08:30:00.000Z"
-    }
-  ],
-  "meta": {
-    "total": 142,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 15
-  }
-}
-```
-
-</details>
-
-#### `GET /api/v1/orders/:id` — Get Order
-
-Lookup by MongoDB `ObjectId` or `trackingNumber`.
-
-#### `PATCH /api/v1/orders/:id/status` — Update Status
-
-State-machine validated. Invalid transitions return `400 Bad Request`.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Request Body:**
-```json
-{
-  "status": "ASSIGNED",
-  "courierId": "courier_042"
-}
-```
-
-**Error `400` (invalid transition):**
-```json
-{
-  "statusCode": 400,
-  "message": "Invalid status transition from DELIVERED to PENDING",
-  "error": "Bad Request"
-}
-```
-
-</details>
-
-#### `POST /api/v1/orders/:id/pod` 🔒 — Upload Proof of Delivery
-
-Upload package photo and recipient signature (file upload or base64 canvas) to complete delivery. Automatically transitions order status to `DELIVERED`.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Content-Type:** `multipart/form-data`
-
-| Field | Type | Required | Description |
-|:--|:--|:--|:--|
-| `photo` | File | **Yes** | Photo of the delivered package |
-| `signature` | File | No* | Recipient signature image |
-| `signatureBase64` | string | No* | Base64-encoded canvas signature (alternative to file) |
-| `latitude` | number | **Yes** | Delivery GPS latitude |
-| `longitude` | number | **Yes** | Delivery GPS longitude |
-| `notes` | string | No | Delivery notes |
-
-> \* Either `signature` file or `signatureBase64` must be provided.
-
-**Response `200`:**
-```json
-{
-  "_id": "667f1a2b3c4d5e6f7a8b9c0d",
-  "trackingNumber": "BSTA-A1B2C3D4-EG",
-  "status": "DELIVERED",
-  "proofOfDelivery": {
-    "photoUrl": "https://s3.amazonaws.com/fleetpulse-pod/packages/photo.png",
-    "signatureUrl": "https://s3.amazonaws.com/fleetpulse-pod/signatures/sig.png",
-    "location": {
-      "type": "Point",
-      "coordinates": [31.2357, 30.0444]
-    },
-    "timestamp": "2026-08-04T12:30:00.000Z",
-    "courierId": "courier_042",
-    "notes": "Left at doorstep"
-  }
-}
-```
-
-**Error `400`:**
-```json
-{
-  "statusCode": 400,
-  "message": "Photo of delivered package is required",
-  "error": "Bad Request"
-}
-```
-
-</details>
-
----
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `POST` | `/api/v1/orders` | Create order (async, returns 202 with tracking number) |
+| `GET` | `/api/v1/orders` | List orders (paginated, filterable by status/merchant/courier) |
+| `GET` | `/api/v1/orders/:id` | Get order by ID or tracking number |
+| `PATCH` | `/api/v1/orders/:id/status` | Update order status (state-machine validated) |
+| `POST` | `/api/v1/orders/:id/pod` 🔒 | Upload proof of delivery (photo + signature) |
 
 ### 🚚 Dispatch
 
-#### `POST /api/v1/dispatch/assign` — Assign Courier
-
-Auto-assigns nearest courier via Redis GeoSets, or assigns a specific courier. Protected by Redlock distributed locking.
-
-<details>
-<summary><b>Request / Response</b></summary>
-
-**Auto-assign (nearest courier):**
-```json
-{
-  "orderId": "667f1a2b3c4d5e6f7a8b9c0d",
-  "latitude": 30.0444,
-  "longitude": 31.2357,
-  "radiusKm": 5
-}
-```
-
-**Manual assign (specific courier):**
-```json
-{
-  "orderId": "667f1a2b3c4d5e6f7a8b9c0d",
-  "courierId": "courier_042"
-}
-```
-
-**Response `200`:**
-```json
-{
-  "success": true,
-  "orderId": "667f1a2b3c4d5e6f7a8b9c0d",
-  "courierId": "courier_042",
-  "status": "ASSIGNED"
-}
-```
-
-**Error `409` (race condition):**
-```json
-{
-  "statusCode": 409,
-  "message": "Order 667f1a2b... is currently being processed by another worker or courier.",
-  "error": "Conflict"
-}
-```
-
-</details>
-
----
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `POST` | `/api/v1/dispatch/assign` | Auto-assign nearest courier or assign specific courier |
+| `GET` | `/api/v1/couriers/:id` | Get courier profile and status |
+| `PATCH` | `/api/v1/couriers/:id/availability` | Toggle courier availability |
 
 ### 🔍 Search
 
-#### `GET /api/v1/search?q=<term>` — Fuzzy Waybill Search
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `GET` | `/api/v1/search?q=<term>` | Fuzzy waybill search (tracking, name, city) |
 
-Searches across `trackingNumber` (3x boosted), `recipientName`, and `city` fields with typo tolerance (`fuzziness: AUTO`).
+### 📊 Analytics
 
-<details>
-<summary><b>Response Example</b></summary>
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `GET` | `/api/v1/analytics/delivery-performance` | Delivery success rate, avg time, status breakdown |
+| `GET` | `/api/v1/analytics/revenue` | Revenue summary, top merchants, COD distribution |
+| `GET` | `/api/v1/analytics/courier-performance` | Courier rankings, delivery count, avg delivery time |
+| `GET` | `/api/v1/analytics/sla` | SLA adherence metrics and compliance rates |
 
-```json
-[
-  {
-    "trackingNumber": "BSTA-A1B2C3D4-EG",
-    "status": "IN_TRANSIT",
-    "recipientName": "Ahmed Hassan",
-    "city": "Cairo",
-    "courierId": "courier_042",
-    "createdAt": "2026-08-03T08:30:00.000Z"
-  }
-]
-```
+### 🌐 Webhooks
 
-</details>
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `POST` | `/api/v1/webhooks/subscriptions` | Create webhook subscription for a merchant |
+| `GET` | `/api/v1/webhooks/subscriptions` | List merchant webhook subscriptions |
+| `DELETE` | `/api/v1/webhooks/subscriptions/:id` | Remove a webhook subscription |
+| `GET` | `/api/v1/webhooks/deliveries` | View webhook delivery log |
 
----
+### 🗺️ Routing
+
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `POST` | `/api/v1/routing/eta` | Calculate ETA between two points |
+| `POST` | `/api/v1/routing/optimize` | Optimize multi-stop delivery route |
+| `POST` | `/api/v1/routing/batch-eta` | Calculate ETAs for multiple orders |
+
+### 💀 Dead Letter Queue
+
+| Method | Endpoint | Description |
+|:--|:--|:--|
+| `GET` | `/api/v1/dlq` | List failed jobs (paginated, filterable by queue) |
+| `GET` | `/api/v1/dlq/:id` | Get failure details for a dead letter job |
+| `POST` | `/api/v1/dlq/:id/retry` | Re-queue job back to original queue |
+| `DELETE` | `/api/v1/dlq/:id` | Remove a single dead letter job |
+| `DELETE` | `/api/v1/dlq` | Purge all dead letter jobs |
 
 ### 📡 WebSocket — Real-Time Telemetry
 
@@ -953,96 +809,12 @@ Searches across `trackingNumber` (3x boosted), `recipientName`, and `city` field
 | Socket.IO | `/telemetry` | `driver_location` | Client → Server |
 | Socket.IO | `/telemetry` | `location_ack` | Server → Client |
 
-<details>
-<summary><b>WebSocket Payload</b></summary>
-
-**Client Emits `driver_location`:**
-```json
-{
-  "courierId": "courier_042",
-  "lon": 31.2357,
-  "lat": 30.0444
-}
-```
-
-**Server Responds `location_ack`:**
-```json
-{
-  "event": "location_ack",
-  "status": "updated"
-}
-```
-
-> The driver's location is stored in a Redis GeoSet (`couriers:locations`) for subsequent geo-spatial dispatch queries.
-
-</details>
-
----
-
 ### 🏥 Health
 
-#### `GET /health` — Infrastructure Health Check
-
-Returns the status of all 4 infrastructure dependencies:
-
-```json
-{
-  "status": "ok",
-  "info": {
-    "postgres": { "status": "up" },
-    "mongodb": { "status": "up" },
-    "redis": { "status": "up" },
-    "elasticsearch": { "status": "up" }
-  },
-  "details": {
-    "postgres": { "status": "up" },
-    "mongodb": { "status": "up" },
-    "redis": { "status": "up" },
-    "elasticsearch": { "status": "up" }
-  }
-}
-```
-
----
-
-## 🔄 Order Lifecycle
-
-### State Machine
-
-```mermaid
-stateDiagram-v2
-    [*] --> PENDING : Order Created
-
-    PENDING --> ASSIGNED : Courier dispatched
-    PENDING --> FAILED : Processing error
-
-    ASSIGNED --> IN_TRANSIT : Courier picks up package
-    ASSIGNED --> FAILED : Courier unavailable
-
-    IN_TRANSIT --> DELIVERED : Package delivered ✅
-    IN_TRANSIT --> FAILED : Delivery failed
-
-    DELIVERED --> [*]
-    FAILED --> [*]
-
-    note right of DELIVERED
-        Triggers RabbitMQ event
-        → order.delivered
-        → COD Ledger Settlement
-    end note
-```
-
-### Transition Rules
-
-| Current State | Allowed Transitions | Denied Transitions |
+| Method | Endpoint | Description |
 |:--|:--|:--|
-| `PENDING` | `ASSIGNED`, `FAILED` | `IN_TRANSIT`, `DELIVERED` |
-| `ASSIGNED` | `IN_TRANSIT`, `FAILED` | `PENDING`, `DELIVERED` |
-| `IN_TRANSIT` | `DELIVERED`, `FAILED` | `PENDING`, `ASSIGNED` |
-| `DELIVERED` | *(terminal)* | All |
-| `FAILED` | *(terminal)* | All |
-
-> Invalid transitions return `400 Bad Request` with a descriptive error message.
+| `GET` | `/health` | Infrastructure health status (Postgres, Mongo, Redis, ES) |
+| `GET` | `/metrics` | Prometheus metrics scrape endpoint |
 
 ---
 
@@ -1058,19 +830,31 @@ npm run test:watch
 # Run tests with coverage report
 npm run test:cov
 
-# Debug tests
-npm run test:debug
+# Run end-to-end tests
+npm run test:e2e
 ```
 
-### Test Coverage Summary
+### Test Coverage
 
-| Service | Tests | What's Covered |
+| Module | Tests | What's Covered |
 |:--|:--|:--|
-| **AuthService** | 10 | Registration, login, refresh token rotation, expired/invalid token rejection, logout token revocation |
+| **AuthService** | 10 | Registration, login, token rotation, expired/invalid token rejection, logout revocation |
 | **AuthController** | 6 | Register, login, refresh, and logout endpoint routing |
-| **OrdersService** | 17 | Order creation, queue enqueue, pagination with filters, findOne by ID/tracking, status transitions, invalid transition rejection, POD upload with file/base64 signatures |
-| **LedgerService** | 5 | COD payment processing, pessimistic locking, double-entry ledger entries, atomic rollback on failure, account validation |
-| **SearchService** | 7 | Index initialization, document indexing/updating, fuzzy search across fields, error resilience, ES client configuration |
+| **OrdersService** | 17 | Order creation, queue enqueue, pagination with filters, findOne, status transitions, POD upload |
+| **LedgerService** | 5 | COD processing, pessimistic locking, double-entry entries, atomic rollback, account validation |
+| **SearchService** | 7 | Index initialization, document indexing, fuzzy search, error resilience |
+| **DispatchService** | 4 | Geo-search, courier assignment, Redlock concurrency, conflict handling |
+| **CourierService** | 6 | Courier CRUD, availability toggle, active order tracking |
+| **AnalyticsService** | 5 | Delivery performance, revenue, courier stats, SLA aggregations |
+| **WebhooksService** | 6 | Subscription CRUD, webhook delivery, HMAC signing, delivery logging |
+| **NotificationsProcessor** | 4 | Email, SMS, Push, In-App channel dispatch |
+| **MetricsInterceptor** | 3 | HTTP request/error counting, duration observation |
+| **QueueMetricsService** | 1 | Queue depth collection across all BullMQ queues |
+| **TracingService** | 4 | Tracer creation, context injection/extraction, active span lifecycle |
+| **DlqService** | 7 | Job capture, pagination, filtering, replay, removal, purging |
+| **DlqController** | 5 | All REST endpoints for DLQ management |
+| **RoutingEngine** | 3 | Haversine distance, multi-stop optimization, edge cases |
+| **EtaService** | 3 | ETA calculation, speed configuration, batch processing |
 
 ### Testing Strategy
 
@@ -1079,25 +863,25 @@ graph LR
     A[Unit Tests] --> B[Service Layer]
     A --> C[DTOs & Validation]
     A --> D[State Machine Logic]
+    A --> E[Metrics & Tracing]
+    A --> F[DLQ Capture & Replay]
     
-    E[Integration Tests] --> F[API Endpoints]
-    E --> G[Database Operations]
+    G[Integration Tests] --> H[API Endpoints]
+    G --> I[Database Operations]
     
-    H[E2E Tests] --> I[Full Request Flows]
-    H --> J[WebSocket Connections]
+    J[E2E Tests] --> K[Full Request Flows]
+    J --> L[WebSocket Connections]
     
     style A fill:#22c55e,stroke:#16a34a,color:#fff
-    style E fill:#3b82f6,stroke:#2563eb,color:#fff
-    style H fill:#a855f7,stroke:#9333ea,color:#fff
+    style G fill:#3b82f6,stroke:#2563eb,color:#fff
+    style J fill:#a855f7,stroke:#9333ea,color:#fff
 ```
 
 ---
 
 ## 🚢 CI/CD & Deployment
 
-### CI Pipeline
-
-The project includes two GitHub Actions workflows:
+### CI/CD Pipeline
 
 ```mermaid
 graph LR
@@ -1123,8 +907,6 @@ graph LR
 
 ### Docker — Multi-Stage Build
 
-The Dockerfile uses a 3-stage build for minimal production images:
-
 ```
 Stage 1: Builder    → Full install + TypeScript compilation
 Stage 2: Deps       → Production-only dependencies (npm ci --omit=dev)
@@ -1132,18 +914,13 @@ Stage 3: Production → Alpine image + compiled JS + prod deps only
 ```
 
 ```bash
-# Build the image
 docker build -t fleetpulse:latest .
-
-# Run the container
 docker run -p 3000:3000 --env-file .env fleetpulse:latest
 ```
 
-> The production image runs as a non-root `node` user for security.
+> Production image runs as a non-root `node` user for security.
 
 ### Kubernetes — Production Deployment
-
-The `k8s/` directory contains production-ready manifests:
 
 | File | Resource | Configuration |
 |:--|:--|:--|
@@ -1179,19 +956,9 @@ graph TB
     style LB fill:#FF6600,stroke:#fff,color:#fff
 ```
 
-Features:
-- **Readiness Probes**: Traffic is only routed to fully booted pods (`/api/v1/health`)
-- **Secrets Management**: Sensitive env vars reference `fleetpulse-secrets` Kubernetes Secret
-- **Resource Limits**: Prevents a single pod from crashing the cluster
-
 ```bash
-# Deploy to Kubernetes
 kubectl apply -f k8s/
-
-# Check pod status
 kubectl get pods -l app=fleetpulse
-
-# View HPA scaling
 kubectl get hpa fleetpulse-api-hpa
 ```
 
@@ -1207,54 +974,77 @@ fleetpulse/
 │       └── ci-cd.yml                     # Full CI/CD + Docker push
 ├── k8s/
 │   ├── fleetpulse-deployment.yaml        # Deployment + Service (3 replicas)
-│   └── fleetpulse-hpa.yaml              # Horizontal Pod Autoscaler (3-10 pods)
+│   └── fleetpulse-hpa.yaml              # Horizontal Pod Autoscaler
 ├── src/
 │   ├── auth/                             # 🔐 JWT Authentication & RBAC
 │   │   ├── auth.controller.ts            #    POST /register, /login, /refresh, /logout
 │   │   ├── auth.service.ts               #    Token generation, rotation, revocation
 │   │   ├── jwt.strategy.ts               #    Passport JWT strategy
 │   │   ├── roles.guard.ts                #    Role-based access guard
-│   │   ├── user-role.enum.ts             #    ADMIN | MERCHANT | COURIER
-│   │   ├── user.schema.ts                #    MongoDB User document + refreshTokenHash
-│   │   ├── register.dto.ts               #    Registration validation
-│   │   ├── login.dto.ts                  #    Login validation
-│   │   └── refresh-token.dto.ts          #    Refresh token validation
+│   │   └── user.schema.ts                #    MongoDB User document
+│   ├── orders/                           # 📦 Order CRUD & Lifecycle
+│   │   ├── orders.controller.ts          #    REST endpoints + POD upload
+│   │   ├── orders.service.ts             #    BullMQ enqueue + state machine
+│   │   └── orders.processor.ts           #    Queue worker + DLQ + tracing
 │   ├── dispatch/                         # 🚚 Courier Assignment & Tracking
 │   │   ├── dispatch/
 │   │   │   ├── dispatch.controller.ts    #    POST /dispatch/assign
-│   │   │   └── dispatch.service.ts       #    Geo-search + Redlock assignment
+│   │   │   └── dispatch.service.ts       #    Geo-search + Redlock
 │   │   ├── redis/
-│   │   │   └── redis.service.ts          #    Raw Redis client + GeoSets + Redlock
+│   │   │   └── redis.service.ts          #    Redis client + GeoSets + Redlock
 │   │   └── tracking/
 │   │       └── tracking.gateway.ts       #    Socket.IO WebSocket gateway
-│   ├── health/                           # 🏥 Infrastructure Health Checks
-│   │   ├── health.controller.ts          #    GET /health (Postgres, Mongo, Redis, ES)
-│   │   └── health.module.ts              #    Health indicators registration
+│   ├── search/                           # 🔍 Elasticsearch Waybill Search
+│   │   ├── search.controller.ts          #    GET /search?q=
+│   │   └── search.service.ts             #    Index init + fuzzy multi_match
 │   ├── ledger/                           # 💰 Financial Double-Entry Ledger
 │   │   ├── entities/
 │   │   │   ├── account.entity.ts         #    Account types + decimal balance
 │   │   │   └── ledger-entry.entity.ts    #    Immutable transaction records
 │   │   ├── ledger.controller.ts          #    RabbitMQ event consumer
-│   │   └── ledger.service.ts             #    COD settlement with pessimistic locks
+│   │   └── ledger.service.ts             #    COD settlement + pessimistic locks
+│   ├── notifications/                    # 🔔 Multi-Channel Notifications
+│   │   ├── notifications.service.ts      #    Notification dispatcher
+│   │   ├── notifications.processor.ts    #    Email, SMS, Push, In-App workers
+│   │   ├── notifications.gateway.ts      #    WebSocket gateway (in-app)
+│   │   └── providers/                    #    Channel-specific providers
+│   ├── webhooks/                         # 🌐 Merchant Webhook Delivery
+│   │   ├── webhooks.controller.ts        #    Subscription CRUD + delivery log
+│   │   ├── webhooks.service.ts           #    Subscription management + enqueue
+│   │   ├── webhooks.processor.ts         #    Signed delivery + retry + DLQ
+│   │   └── utils/
+│   │       └── webhook-signature.util.ts #    HMAC-SHA256 signature generation
+│   ├── analytics/                        # 📊 Operational Analytics
+│   │   ├── analytics.controller.ts       #    Performance, revenue, courier, SLA
+│   │   └── analytics.service.ts          #    MongoDB aggregation pipelines
+│   ├── routing/                          # 🗺️ Route Optimization & ETA
+│   │   ├── routing.controller.ts         #    ETA, optimize, batch endpoints
+│   │   ├── routing-engine.service.ts     #    Haversine + nearest neighbor
+│   │   └── eta.service.ts               #    ETA calculation service
+│   ├── metrics/                          # 📈 Prometheus Metrics
+│   │   ├── metrics.module.ts             #    Metric providers (Counter, Histogram, Gauge)
+│   │   ├── metrics.interceptor.ts        #    Global HTTP request/error/duration tracking
+│   │   └── queue-metrics.service.ts      #    Periodic BullMQ queue depth collection
+│   ├── dlq/                              # 💀 Dead Letter Queue
+│   │   ├── dlq.controller.ts             #    REST API for DLQ management
+│   │   ├── dlq.service.ts               #    Capture, replay, purge logic
+│   │   └── dlq.module.ts                #    DLQ module registration
+│   ├── health/                           # 🏥 Infrastructure Health Checks
+│   │   ├── health.controller.ts          #    GET /health
+│   │   └── health.module.ts              #    Health indicators
 │   ├── common/                           # 🔧 Shared Utilities
-│   │   └── storage/
-│   │       ├── storage.module.ts         #    S3 storage module
-│   │       └── storage.service.ts        #    S3 file upload + base64 upload
-│   ├── orders/                           # 📦 Order CRUD & Lifecycle
-│   │   ├── dto/
-│   │   │   ├── create-order.dto.ts       #    Nested DTO with class-validator
-│   │   │   ├── order-query.dto.ts        #    Pagination + filter params
-│   │   │   ├── update-order-status.dto.ts #   Status enum + courierId
-│   │   │   └── upload-pod.dto.ts         #    POD upload validation
-│   │   ├── schemas/
-│   │   │   └── order.schema.ts           #    MongoDB schema (GeoJSON + POD nested)
-│   │   ├── orders.controller.ts          #    REST endpoints + POD upload
-│   │   └── orders.service.ts             #    BullMQ enqueue + state machine + POD
-│   ├── search/                           # 🔍 Elasticsearch Waybill Search
-│   │   ├── search.controller.ts          #    GET /search?q=
-│   │   └── search.service.ts             #    Index init + fuzzy multi_match
+│   │   ├── tracing/
+│   │   │   ├── tracing.module.ts         #    Global tracing module
+│   │   │   └── tracing.service.ts        #    OTel context propagation
+│   │   ├── storage/
+│   │   │   └── storage.service.ts        #    S3 file + base64 upload
+│   │   ├── middleware/
+│   │   │   └── correlation-id.middleware.ts  # X-Request-ID propagation
+│   │   └── filters/
+│   │       └── all-exceptions.filter.ts  #    Global exception handler
+│   ├── tracing.ts                        # 🔭 OpenTelemetry SDK bootstrap
 │   ├── app.module.ts                     #    Root module (Joi config validation)
-│   └── main.ts                           #    Bootstrap + Swagger + RabbitMQ consumer
+│   └── main.ts                           #    Bootstrap + Swagger + RabbitMQ
 ├── Dockerfile                            #    Multi-stage production build
 ├── docker-compose.yml                    #    5-service development stack
 ├── package.json                          #    Dependencies & scripts
@@ -1299,14 +1089,19 @@ All variables are validated at startup with **Joi**. The application will refuse
 | `RABBITMQ_URI` | **Yes** | — | RabbitMQ AMQP connection URI |
 | `ELASTICSEARCH_NODE` | **Yes** | — | Elasticsearch node URL |
 | `JWT_SECRET` | **Yes** | — | Secret key for JWT access token signing |
-| `JWT_EXPIRATION` | No | `15m` | Access token expiration duration |
-| `JWT_REFRESH_SECRET` | No | — | Separate secret for refresh tokens (falls back to `JWT_SECRET`) |
-| `JWT_REFRESH_EXPIRATION` | No | `7d` | Refresh token expiration duration |
+| `JWT_EXPIRATION` | No | `15m` | Access token expiration |
+| `JWT_REFRESH_SECRET` | No | — | Separate secret for refresh tokens |
+| `JWT_REFRESH_EXPIRATION` | No | `7d` | Refresh token expiration |
 | `S3_ENDPOINT` | No | — | S3-compatible endpoint URL |
 | `S3_REGION` | No | `us-east-1` | S3 region |
-| `S3_BUCKET` | No | `fleetpulse-pod` | S3 bucket name for POD uploads |
+| `S3_BUCKET` | No | `fleetpulse-pod` | S3 bucket for POD uploads |
 | `S3_ACCESS_KEY_ID` | No | — | S3 access key |
 | `S3_SECRET_ACCESS_KEY` | No | — | S3 secret key |
+| `OTEL_EXPORTER_TYPE` | No | `jaeger` | OpenTelemetry exporter (`jaeger`, `zipkin`, `otlp`) |
+| `OTEL_EXPORTER_JAEGER_ENDPOINT` | No | `http://localhost:14268/api/traces` | Jaeger collector endpoint |
+| `OTEL_EXPORTER_ZIPKIN_ENDPOINT` | No | `http://localhost:9411/api/v2/spans` | Zipkin collector endpoint |
+| `OTEL_EXPORTER_OTLP_ENDPOINT` | No | `http://localhost:4318/v1/traces` | OTLP collector endpoint |
+| `OTEL_SERVICE_NAME` | No | `fleetpulse-service` | Service name in traces |
 
 ---
 
