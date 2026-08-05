@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/require-await */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Processor, WorkerHost } from '@nestjs/bullmq';
+import { Processor, WorkerHost, OnWorkerEvent } from '@nestjs/bullmq';
 import { Logger, Optional } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailProvider } from './providers/email.provider';
@@ -13,6 +13,7 @@ import { NotificationChannel } from './enums/notification-channel.enum';
 import { InjectMetric } from '@willsoto/nestjs-prometheus';
 import { Histogram } from 'prom-client';
 import { TracingService } from '../common/tracing/tracing.service';
+import { DlqService } from '../dlq/dlq.service';
 import { SpanKind } from '@opentelemetry/api';
 
 @Processor('notifications-queue')
@@ -28,8 +29,16 @@ export class NotificationsProcessor extends WorkerHost {
     @InjectMetric('queue_job_duration_seconds')
     private readonly queueJobDurationHistogram?: Histogram<string>,
     @Optional() private readonly tracingService?: TracingService,
+    @Optional() private readonly dlqService?: DlqService,
   ) {
     super();
+  }
+
+  @OnWorkerEvent('failed')
+  async onFailed(job: Job, error: Error) {
+    if (this.dlqService) {
+      await this.dlqService.captureFailedJob(job, error);
+    }
   }
 
   async process(job: Job<SendNotificationDto, any, string>): Promise<any> {

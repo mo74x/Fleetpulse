@@ -19,6 +19,7 @@ import { RoutingModule } from './routing/routing.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsInterceptor } from './metrics/metrics.interceptor';
 import { TracingModule } from './common/tracing/tracing.module';
+import { DlqModule } from './dlq/dlq.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -141,6 +142,7 @@ import { randomUUID } from 'crypto';
     RoutingModule,
     MetricsModule,
     TracingModule,
+    DlqModule,
   ],
   providers: [
     {
