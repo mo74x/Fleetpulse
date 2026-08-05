@@ -1,5 +1,6 @@
+/* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/unbound-method */
-/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+
 import { Test, TestingModule } from '@nestjs/testing';
 import { OrdersService } from './orders.service';
 import { getQueueToken } from '@nestjs/bullmq';
@@ -33,11 +34,16 @@ describe('OrdersService - Proof of Delivery (POD)', () => {
   };
 
   const mockStorageService = {
-    uploadFile: jest
-      .fn()
-      .mockResolvedValue(
+    uploadFile: jest.fn().mockImplementation((_buffer: any, options: any) => {
+      if (options?.folder === 'signatures') {
+        return Promise.resolve(
+          'https://s3.amazonaws.com/fleetpulse-pod/signatures/sig.png',
+        );
+      }
+      return Promise.resolve(
         'https://s3.amazonaws.com/fleetpulse-pod/packages/photo.png',
-      ),
+      );
+    }),
     uploadBase64: jest
       .fn()
       .mockResolvedValue(

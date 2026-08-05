@@ -35,6 +35,7 @@ import { plainToInstance } from 'class-transformer';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { UploadPodDto } from './dto/upload-pod.dto';
 import { StorageService } from '../common/storage/storage.service';
+import { TracingService } from '../common/tracing/tracing.service';
 
 @Injectable()
 export class OrdersService {
@@ -49,12 +50,16 @@ export class OrdersService {
     @Optional()
     @InjectMetric('orders_created_total')
     private readonly ordersCreatedCounter?: Counter<string>,
+    @Optional() private readonly tracingService?: TracingService,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
     // Generate a mock tracking number instantly
     const trackingNumber = `BSTA-${randomUUID().substring(0, 8).toUpperCase()}-EG`;
     const correlationId = CorrelationContext.getCorrelationId();
+    const traceContext = this.tracingService
+      ? this.tracingService.injectContext()
+      : {};
     const createdEvent = {
       timestamp: new Date(),
       action: 'CREATED',
@@ -67,6 +72,7 @@ export class OrdersService {
       status: 'PENDING',
       createdAt: new Date(),
       correlationId,
+      _traceContext: traceContext,
       events: [createdEvent],
     };
 

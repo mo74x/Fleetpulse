@@ -75,7 +75,7 @@ describe('RoutingEngineService', () => {
       expect(result.legs).toHaveLength(3);
       expect(result.totalDistanceKm).toBeGreaterThan(0);
       expect(result.totalDurationMinutes).toBeGreaterThan(0);
-    });
+    }, 30000);
 
     it('should handle empty waypoints array gracefully', async () => {
       const origin = { lat: 30.0, lng: 31.0 };

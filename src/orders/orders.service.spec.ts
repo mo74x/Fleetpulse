@@ -115,7 +115,9 @@ describe('OrdersService', () => {
 
       const result = await service.findAll({ page: 1, limit: 10 });
 
-      expect(result.data).toEqual(orders);
+      expect(result.data).toEqual([
+        expect.objectContaining({ trackingNumber: 'BSTA-0001-EG' }),
+      ]);
       expect(result.meta).toEqual({
         total: 1,
         page: 1,

@@ -18,6 +18,7 @@ import { WebhooksModule } from './webhooks/webhooks.module';
 import { RoutingModule } from './routing/routing.module';
 import { MetricsModule } from './metrics/metrics.module';
 import { MetricsInterceptor } from './metrics/metrics.interceptor';
+import { TracingModule } from './common/tracing/tracing.module';
 import { LoggerModule } from 'nestjs-pino';
 import { CorrelationIdMiddleware } from './common/middleware/correlation-id.middleware';
 import { AllExceptionsFilter } from './common/filters/all-exceptions.filter';
@@ -139,6 +140,7 @@ import { randomUUID } from 'crypto';
     WebhooksModule,
     RoutingModule,
     MetricsModule,
+    TracingModule,
   ],
   providers: [
     {
