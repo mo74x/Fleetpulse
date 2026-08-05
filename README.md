@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="fleetpulse-banner.png" width="200" alt="FleetPulse Logo" />
+  <img src="assets/fleetpulse-banner.png" width="800" alt="FleetPulse Banner" />
 </p>
 
 <h1 align="center">FleetPulse</h1>
