@@ -1,10 +1,12 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { WebhooksService } from './webhooks.service';
 import { WebhookSignatureUtil } from './utils/webhook-signature.util';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Histogram } from 'prom-client';
 
 export interface WebhookJobData {
   subscriptionId: string;
@@ -19,11 +21,17 @@ export interface WebhookJobData {
 export class WebhooksProcessor extends WorkerHost {
   private readonly logger = new Logger(WebhooksProcessor.name);
 
-  constructor(private readonly webhooksService: WebhooksService) {
+  constructor(
+    private readonly webhooksService: WebhooksService,
+    @Optional()
+    @InjectMetric('queue_job_duration_seconds')
+    private readonly queueJobDurationHistogram?: Histogram<string>,
+  ) {
     super();
   }
 
   async process(job: Job<WebhookJobData>): Promise<any> {
+    const startTime = Date.now();
     const { subscriptionId, merchantId, url, secret, event, payload } =
       job.data;
     const attempt = job.attemptsMade + 1;
@@ -96,8 +104,23 @@ export class WebhooksProcessor extends WorkerHost {
     });
 
     if (!success) {
+      if (this.queueJobDurationHistogram) {
+        const durationSeconds = (Date.now() - startTime) / 1000;
+        this.queueJobDurationHistogram.observe(
+          { queue: 'webhooks-queue', status: 'failed' },
+          durationSeconds,
+        );
+      }
       throw new Error(
         `Webhook delivery failed [Status: ${httpStatus || 'N/A'}]: ${errorMsg}`,
+      );
+    }
+
+    if (this.queueJobDurationHistogram) {
+      const durationSeconds = (Date.now() - startTime) / 1000;
+      this.queueJobDurationHistogram.observe(
+        { queue: 'webhooks-queue', status: 'success' },
+        durationSeconds,
       );
     }
 

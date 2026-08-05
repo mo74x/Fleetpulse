@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 import { Processor, WorkerHost } from '@nestjs/bullmq';
-import { Logger } from '@nestjs/common';
+import { Logger, Optional } from '@nestjs/common';
 import { Job } from 'bullmq';
 import { EmailProvider } from './providers/email.provider';
 import { SmsProvider } from './providers/sms.provider';
@@ -8,6 +8,8 @@ import { PushProvider } from './providers/push.provider';
 import { NotificationsGateway } from './notifications.gateway';
 import { SendNotificationDto } from './dto/notification-payload.dto';
 import { NotificationChannel } from './enums/notification-channel.enum';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Histogram } from 'prom-client';
 
 @Processor('notifications-queue')
 export class NotificationsProcessor extends WorkerHost {
@@ -18,11 +20,15 @@ export class NotificationsProcessor extends WorkerHost {
     private readonly smsProvider: SmsProvider,
     private readonly pushProvider: PushProvider,
     private readonly notificationsGateway: NotificationsGateway,
+    @Optional()
+    @InjectMetric('queue_job_duration_seconds')
+    private readonly queueJobDurationHistogram?: Histogram<string>,
   ) {
     super();
   }
 
   process(job: Job<SendNotificationDto, any, string>): any {
+    const startTime = Date.now();
     const payload = job.data;
     this.logger.log(
       `Processing notification job [${job.name}] (ID: ${job.id}) for order ${payload.trackingNumber} [Status: ${payload.status}]`,
@@ -90,7 +96,22 @@ export class NotificationsProcessor extends WorkerHost {
         default:
           this.logger.warn(`Unknown notification job name: ${job.name}`);
       }
+
+      if (this.queueJobDurationHistogram) {
+        const durationSeconds = (Date.now() - startTime) / 1000;
+        this.queueJobDurationHistogram.observe(
+          { queue: 'notifications-queue', status: 'success' },
+          durationSeconds,
+        );
+      }
     } catch (error: any) {
+      if (this.queueJobDurationHistogram) {
+        const durationSeconds = (Date.now() - startTime) / 1000;
+        this.queueJobDurationHistogram.observe(
+          { queue: 'notifications-queue', status: 'failed' },
+          durationSeconds,
+        );
+      }
       this.logger.error(
         `Failed to execute notification job ${job.id} (${job.name}): ${error.message}`,
       );

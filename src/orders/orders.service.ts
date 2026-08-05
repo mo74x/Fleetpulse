@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-unsafe-assignment */
+/* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-argument */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
 /* eslint-disable @typescript-eslint/no-unsafe-enum-comparison */
@@ -27,10 +29,12 @@ import { CorrelationContext } from '../common/context/correlation-context';
 import { NotificationsService } from '../notifications/notifications.service';
 import { CourierService } from '../dispatch/courier.service';
 import { WebhooksService } from '../webhooks/webhooks.service';
-import { StorageService } from '../common/storage/storage.service';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Counter } from 'prom-client';
 import { plainToInstance } from 'class-transformer';
 import { OrderResponseDto } from './dto/order-response.dto';
 import { UploadPodDto } from './dto/upload-pod.dto';
+import { StorageService } from '../common/storage/storage.service';
 
 @Injectable()
 export class OrdersService {
@@ -42,6 +46,9 @@ export class OrdersService {
     @Optional() private readonly courierService?: CourierService,
     @Optional() private readonly webhooksService?: WebhooksService,
     @Optional() private readonly storageService?: StorageService,
+    @Optional()
+    @InjectMetric('orders_created_total')
+    private readonly ordersCreatedCounter?: Counter<string>,
   ) {}
 
   async createOrder(createOrderDto: CreateOrderDto) {
@@ -93,6 +100,10 @@ export class OrdersService {
           createdAt: payload.createdAt,
         },
       );
+    }
+
+    if (this.ordersCreatedCounter) {
+      this.ordersCreatedCounter.inc();
     }
 
     return {

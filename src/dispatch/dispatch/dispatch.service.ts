@@ -1,11 +1,18 @@
 /* eslint-disable @typescript-eslint/no-unsafe-assignment */
 /* eslint-disable @typescript-eslint/no-unsafe-call */
 /* eslint-disable @typescript-eslint/no-unsafe-member-access */
-import { Injectable, Logger, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ConflictException,
+  Optional,
+} from '@nestjs/common';
 import { RedisService } from '../redis/redis.service';
 import { OrdersService } from '../../orders/orders.service';
 import { OrderStatus } from '../../orders/dto/update-order-status.dto';
 import { CourierService } from '../courier.service';
+import { InjectMetric } from '@willsoto/nestjs-prometheus';
+import { Histogram } from 'prom-client';
 
 @Injectable()
 export class DispatchService {
@@ -14,7 +21,10 @@ export class DispatchService {
   constructor(
     private readonly redisService: RedisService,
     private readonly ordersService: OrdersService,
-    private readonly courierService?: CourierService,
+    @Optional() private readonly courierService?: CourierService,
+    @Optional()
+    @InjectMetric('dispatch_duration_seconds')
+    private readonly dispatchDurationHistogram?: Histogram<string>,
   ) {}
 
   /**
@@ -98,6 +108,7 @@ export class DispatchService {
    * Assign an order to a courier with a Concurrency Lock
    */
   async assignOrderSafely(orderId: string, courierId: string) {
+    const startTime = Date.now();
     const lockKey = `locks:order:dispatch:${orderId}`;
     const ttl = 5000; // Lock duration (5 seconds)
 
@@ -123,6 +134,11 @@ export class DispatchService {
         this.logger.log(
           `Order ${orderId} successfully assigned to ${courierId}`,
         );
+
+        if (this.dispatchDurationHistogram) {
+          const durationSeconds = (Date.now() - startTime) / 1000;
+          this.dispatchDurationHistogram.observe(durationSeconds);
+        }
 
         return {
           success: true,

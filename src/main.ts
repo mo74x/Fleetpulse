@@ -18,7 +18,7 @@ async function bootstrap() {
 
   // Global Prefix & URI Versioning Configuration
   app.setGlobalPrefix('api', {
-    exclude: ['health', '/'],
+    exclude: ['health', '/', 'metrics'],
   });
 
   app.enableVersioning({
